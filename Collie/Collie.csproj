@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Common\" />
+    <Folder Include="Model\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Collie.Abstractions\Collie.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
