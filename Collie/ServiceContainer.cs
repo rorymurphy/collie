@@ -48,6 +48,8 @@ namespace Collie.ServiceLookup
 
         protected object tenantKey;
 
+        protected int tenantCacheSize = 0;
+
         protected ServiceLifetime containerType;
 
         protected internal bool IsRootContainer { get { return containerType == ServiceLifetime.Singleton; } }
@@ -60,11 +62,12 @@ namespace Collie.ServiceLookup
         public ServiceContainer(IServiceCatalog services) : this(services, (container) => SingleTenantKey, typeof(object)) { }
 
         //Root container initialization
-        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType)
+        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, int tenantCacheSize = 0)
         {
             this.services = services;
             this.tenantKeySelector = keySelector;
             this.tenantKeyType = keyType;
+            this.tenantCacheSize = tenantCacheSize;
 
             containerType = ServiceLifetime.Singleton;
 
@@ -104,7 +107,7 @@ namespace Collie.ServiceLookup
             serviceFactoryGenerator = IsRootContainer ? new ExpressionServiceFactory() : (IServiceFactoryGenerator)rootContainer.GetService(IServiceFactoryGeneratorType);
             serviceCreatorCache = IsRootContainer ? new ServiceCreatorCache() : (ServiceCreatorCache)rootContainer.GetService(ServiceCreatorCacheType);
             scopeBuilder = IsRootContainer ? new DefaultScopeBuilder(services, this, tenantKeySelector, tenantKeyType) : (IScopeBuilder)rootContainer.GetService(IScopeBuilderType);
-            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, 0) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
+            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, tenantCacheSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
             foreach (var svc in services)
@@ -124,7 +127,7 @@ namespace Collie.ServiceLookup
             return GetServiceInternal(serviceType, new Type[0]);
         }
 
-        protected internal object GetServiceInternal(Type serviceType, Type[] callChain)
+        protected internal virtual object GetServiceInternal(Type serviceType, Type[] callChain)
         {
             if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
             else if (serviceType == IServiceContainerType) { return this; }

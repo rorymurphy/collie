@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Collie
+namespace Collie.Test
 {
-    class ServiceCatalogExtensions
+    class DefaultTenantManagerTest
     {
     }
 }

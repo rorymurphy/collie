@@ -12,7 +12,7 @@ namespace Collie.ServiceLookup.Expressions
     class ExpressionServiceFactory : IServiceFactoryGenerator
     {
         private static readonly MethodInfo IServiceContainerGetServiceMethod = typeof(IServiceContainer).GetMethod(nameof(IServiceContainer.GetService));
-        private static readonly MethodInfo ServiceContainerGetServiceInternalMethod = typeof(ServiceContainer).GetMethod(nameof(ServiceContainer.GetServiceInternal));
+        private static readonly MethodInfo ServiceContainerGetServiceInternalMethod = typeof(ServiceContainer).GetMethod(nameof(ServiceContainer.GetServiceInternal), BindingFlags.NonPublic | BindingFlags.Instance);
         private static readonly ConstructorInfo MissingDependencyExceptionConstructor = typeof(MissingDependencyException).GetConstructor(new Type[] { typeof(Type), typeof(Type), typeof(Exception) });
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly MethodInfo IEnumerableGeneratorMethod = typeof(ExpressionServiceFactory).GetMethod(nameof(CreateEnumerableInstanceInternal), BindingFlags.Static | BindingFlags.NonPublic);
@@ -48,10 +48,11 @@ namespace Collie.ServiceLookup.Expressions
 
             var paramTypes = candidateConstructors[0].GetParameters();
 
-            var expressionList = new List<Expression>();
+            var paramList = new List<ParameterExpression>(paramTypes.Length);
+            var initList = new List<Expression>(paramTypes.Length * 2);
             var nullExpr = Expression.Constant(null);
 
-            var containerExpr = Expression.Parameter(typeof(IServiceContainer));
+            var containerExpr = Expression.Parameter(typeof(ServiceContainer));
             var callChainExpr = Expression.Parameter(typeof(Type[]));
 
             Expression updateCallChainExpr = Expression.Call(AppendMethodInfo.MakeGenericMethod(typeof(Type)), callChainExpr, Expression.Constant(implementationType));
@@ -59,18 +60,31 @@ namespace Collie.ServiceLookup.Expressions
             updateCallChainExpr = Expression.Assign(callChainExpr, updateCallChainExpr);
 
             foreach (var p in paramTypes)
-            {          
-                expressionList.Add(Expression.OrElse(
-                    Expression.Call(containerExpr, ServiceContainerGetServiceInternalMethod, Expression.Constant(p), callChainExpr),
-                    //Throw an exception if any of the arguments are not resolved
-                    Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), nullExpr)))
-                );
+            {
+                var paramExpr = Expression.Parameter(p.ParameterType);
+                var initExpr = Expression.Assign(paramExpr,
+                    Expression.Convert(Expression.Call(containerExpr, ServiceContainerGetServiceInternalMethod, Expression.Constant(p.ParameterType), callChainExpr), p.ParameterType));
+                var nullCheckExpr = Expression.IfThen(Expression.Equal(nullExpr, paramExpr),
+                    Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), Expression.Convert(nullExpr, typeof(Exception)))));
+
+
+                paramList.Add(paramExpr);
+                initList.Add(initExpr);
+                initList.Add(nullCheckExpr);
                 
 
             }
 
-            var newExpr = Expression.New(candidateConstructors[0], expressionList.ToArray());
-            var blockExpr = Expression.Block(updateCallChainExpr, newExpr);
+            Expression newExpr = null;
+            if(paramTypes.Length > 0)
+            { newExpr = Expression.New(candidateConstructors[0], paramList.ToArray()); }
+            else { newExpr = Expression.New(candidateConstructors[0]); }
+
+            var blockList = new List<Expression>(initList.Count + 2);
+            blockList.Add(updateCallChainExpr);
+            blockList.AddRange(initList);
+            blockList.Add(newExpr);
+            var blockExpr = Expression.Block(paramList, blockList);
             var resultExpr = Expression.Lambda(blockExpr, containerExpr, callChainExpr);
             return (Func<ServiceContainer, Type[], object>)resultExpr.Compile();
         }

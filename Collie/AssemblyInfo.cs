@@ -18,3 +18,4 @@ using System.Runtime.InteropServices;
 [assembly: Guid("3ccd0399-0daa-4979-870c-58a138429eaf")]
 
 [assembly: InternalsVisibleTo("Collie.Test")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
