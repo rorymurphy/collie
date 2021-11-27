@@ -12,7 +12,7 @@ namespace Collie.ServiceLookup.Expressions
     class ExpressionServiceFactory : IServiceFactoryGenerator
     {
         private static readonly MethodInfo IServiceContainerGetServiceMethod = typeof(IServiceContainer).GetMethod(nameof(IServiceContainer.GetService));
-        private static readonly MethodInfo ServiceContainerGetServiceInternalMethod = typeof(ServiceContainer).GetMethod(nameof(ServiceContainer.GetServiceInternal), BindingFlags.NonPublic | BindingFlags.Instance);
+        private static readonly MethodInfo ServiceContainerGetServiceInternalMethod = typeof(IServiceContainerExtended).GetMethod(nameof(IServiceContainerExtended.GetServiceInternal));
         private static readonly ConstructorInfo MissingDependencyExceptionConstructor = typeof(MissingDependencyException).GetConstructor(new Type[] { typeof(Type), typeof(Type), typeof(Exception) });
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly MethodInfo IEnumerableGeneratorMethod = typeof(ExpressionServiceFactory).GetMethod(nameof(CreateEnumerableInstanceInternal), BindingFlags.Static | BindingFlags.NonPublic);
@@ -20,9 +20,9 @@ namespace Collie.ServiceLookup.Expressions
         private static readonly MethodInfo AppendMethodInfo = typeof(Enumerable).GetMethod(nameof(Enumerable.Append));
         private static readonly MethodInfo ToArrayMethodInfo = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray));
 
-        public Func<ServiceContainer, Type[], object> CreateFactory(Type implementationType)
+        public Func<IServiceContainerExtended, Type[], object> CreateFactory(Type implementationType)
         {
-            Func<ServiceContainer, Type[], object> result = null;
+            Func<IServiceContainerExtended, Type[], object> result = null;
             if (implementationType.IsGenericType && implementationType.GetGenericTypeDefinition() == IEnumerableType)
             {
                 result = CreateEnumerableInstance(implementationType);
@@ -34,7 +34,7 @@ namespace Collie.ServiceLookup.Expressions
             return result;
         }
 
-        Func<ServiceContainer, Type[], object> CreateInstanceFromConstructor(Type implementationType)
+        Func<IServiceContainerExtended, Type[], object> CreateInstanceFromConstructor(Type implementationType)
         {
             var candidateConstructors = implementationType.GetConstructors().Where(c => c.IsPublic).ToArray();
             if(candidateConstructors.Length == 0)
@@ -52,7 +52,7 @@ namespace Collie.ServiceLookup.Expressions
             var initList = new List<Expression>(paramTypes.Length * 2);
             var nullExpr = Expression.Constant(null);
 
-            var containerExpr = Expression.Parameter(typeof(ServiceContainer));
+            var containerExpr = Expression.Parameter(typeof(IServiceContainerExtended));
             var callChainExpr = Expression.Parameter(typeof(Type[]));
 
             Expression updateCallChainExpr = Expression.Call(AppendMethodInfo.MakeGenericMethod(typeof(Type)), callChainExpr, Expression.Constant(implementationType));
@@ -86,30 +86,30 @@ namespace Collie.ServiceLookup.Expressions
             blockList.Add(newExpr);
             var blockExpr = Expression.Block(paramList, blockList);
             var resultExpr = Expression.Lambda(blockExpr, containerExpr, callChainExpr);
-            return (Func<ServiceContainer, Type[], object>)resultExpr.Compile();
+            return (Func<IServiceContainerExtended, Type[], object>)resultExpr.Compile();
         }
 
-        Func<ServiceContainer, Type[], object> CreateEnumerableInstance(Type implementationType)
+        Func<IServiceContainerExtended, Type[], object> CreateEnumerableInstance(Type implementationType)
         {
             var serviceType = implementationType.GetGenericArguments()[0];
 
-            var serviceContainerParam = Expression.Parameter(typeof(ServiceContainer));
+            var serviceContainerParam = Expression.Parameter(typeof(IServiceContainerExtended));
             var callChainParam = Expression.Parameter(typeof(Type[]));
 
             var method = IEnumerableGeneratorMethod.MakeGenericMethod(serviceType);
             var body = Expression.Call(method, serviceContainerParam, callChainParam);
-            return (Func<ServiceContainer, Type[], object>)Expression.Lambda(body, serviceContainerParam, callChainParam).Compile();
+            return (Func<IServiceContainerExtended, Type[], object>)Expression.Lambda(body, serviceContainerParam, callChainParam).Compile();
         }
 
-        private static IEnumerable<T> CreateEnumerableInstanceInternal<T>(ServiceContainer container, Type[] callChain)
+        private static IEnumerable<T> CreateEnumerableInstanceInternal<T>(IServiceContainerExtended container, Type[] callChain)
         {
             callChain = callChain.Append(typeof(T)).ToArray();
             return container.GetImplementationTypes(typeof(T)).Select(c => (T)container.GetImplementation(c, callChain));
         }
 
-        public Func<ServiceContainer, Type[], object> CreateFactory(Type serviceType, Func<IServiceContainer, object> factory)
+        public Func<IServiceContainerExtended, Type[], object> CreateFactory(Type serviceType, Func<IServiceContainer, object> factory)
         {
-            return (ServiceContainer inner, Type[] callChain) =>
+            return (IServiceContainerExtended inner, Type[] callChain) =>
             {
                 callChain = callChain.Append(serviceType).ToArray();
                 var container = new WrapperServiceContainer(inner, callChain);
@@ -121,9 +121,9 @@ namespace Collie.ServiceLookup.Expressions
         protected static readonly ConstructorInfo WrapperServiceContainerConstructor = typeof(WrapperServiceContainer).GetConstructor(new Type[] { typeof(ServiceContainer), typeof(Type[]) });
         struct WrapperServiceContainer : IServiceContainer
         {
-            private ServiceContainer inner;
+            private IServiceContainerExtended inner;
             private Type[] callChain;
-            public WrapperServiceContainer(ServiceContainer inner, Type[] callChain)
+            public WrapperServiceContainer(IServiceContainerExtended inner, Type[] callChain)
             {
                 this.inner = inner;
                 this.callChain = callChain;

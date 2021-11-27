@@ -9,8 +9,8 @@ namespace Collie.ServiceLookup
 {
     interface IServiceFactoryGenerator
     {
-        Func<ServiceContainer, Type[], object> CreateFactory(Type implementationType);
+        Func<IServiceContainerExtended, Type[], object> CreateFactory(Type implementationType);
 
-        Func<ServiceContainer, Type[], object> CreateFactory(Type serviceType, Func<IServiceContainer, object> factory);
+        Func<IServiceContainerExtended, Type[], object> CreateFactory(Type serviceType, Func<IServiceContainer, object> factory);
     }
 }

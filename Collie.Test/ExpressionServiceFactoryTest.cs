@@ -14,18 +14,23 @@ namespace Collie.Test
         public void TestBasicFactoryGeneration() {
             var factory = new ExpressionServiceFactory();
             var factoryMethod = factory.CreateFactory(typeof(CompositeServiceD));
-            var serviceContainerMock = new Mock<ServiceContainer>();
+            var serviceContainerMock = new Mock<IServiceContainerExtended>();
 
             var expectedStack = new Type[] { typeof(CompositeServiceD) };
             var serviceAType = typeof(IServiceA);
-            serviceContainerMock.Setup(sc => sc.GetServiceInternal(serviceAType, expectedStack))
-                .Returns(() => new DefaultServiceA());
-            //serviceContainerMock.Setup(sc => sc.GetServiceInternal(typeof(IServiceB), expectedStack))
-            //    .Returns(() => new DefaultServiceB());
-
+            serviceContainerMock.Setup(sc => sc.GetServiceInternal(typeof(IServiceA), expectedStack))
+                .Returns(() => new DefaultServiceA())
+                .Verifiable();
+            serviceContainerMock.Setup(sc => sc.GetServiceInternal(typeof(IServiceB), expectedStack))
+                .Returns(() => new DefaultServiceB())
+                .Verifiable();
+            serviceContainerMock.Setup(sc => sc.GetServiceInternal(typeof(IServiceC), expectedStack))
+                .Returns(() => new DefaultServiceC())
+                .Verifiable();
 
             factoryMethod(serviceContainerMock.Object, Array.Empty<Type>());
-            //serviceContainerMock.Verify(sc => sc.GetImplementation(It.IsAny<ServiceIdentifier>(), It.IsAny<Type[]>()), Times.Exactly(3));
+
+            serviceContainerMock.Verify();
         }
     }
 }

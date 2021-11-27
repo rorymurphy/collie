@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Collie.ServiceLookup
 {
-    class ServiceContainer : IServiceContainer, IDisposable
+    class ServiceContainer : IServiceContainerExtended, IDisposable
     {
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly Type IServiceFactoryGeneratorType = typeof(IServiceFactoryGenerator);
@@ -127,7 +127,7 @@ namespace Collie.ServiceLookup
             return GetServiceInternal(serviceType, new Type[0]);
         }
 
-        protected internal virtual object GetServiceInternal(Type serviceType, Type[] callChain)
+        public virtual object GetServiceInternal(Type serviceType, Type[] callChain)
         {
             if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
             else if (serviceType == IServiceContainerType) { return this; }
@@ -142,7 +142,7 @@ namespace Collie.ServiceLookup
                 throw new CircularDependencyException(callChain);
             }
 
-            if(resolvedServices.ContainsKey(serviceType)) { return resolvedServices[serviceType]; }
+            if (resolvedServices.ContainsKey(serviceType)) { return resolvedServices[serviceType]; }
 
             Type genericType = null;
             ServiceDefinition definition = null;
@@ -186,13 +186,13 @@ namespace Collie.ServiceLookup
             }
         }
 
-        protected internal IEnumerable<ServiceIdentifier> GetImplementationTypes(Type serviceType)
+        public IEnumerable<ServiceIdentifier> GetImplementationTypes(Type serviceType)
         {
             var genericType = serviceType.IsGenericType ? serviceType.GetGenericTypeDefinition() : null;
             return services.Where(sd => sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType)).Select(sd => new ServiceIdentifier(serviceType, sd));
         }
 
-        protected internal object GetImplementation(ServiceIdentifier identifier, Type[] callChain)
+        public object GetImplementation(ServiceIdentifier identifier, Type[] callChain)
         {
             var lifetimeResolution = GetLiftetimeResolution(identifier.Lifetime);
             switch (lifetimeResolution)
@@ -217,7 +217,7 @@ namespace Collie.ServiceLookup
         {
             var factory = serviceCreatorCache.GetOrAdd(identifier, key =>
             {
-                Func<ServiceContainer, Type[], object> factory = null;
+                Func<IServiceContainerExtended, Type[], object> factory = null;
                 if (identifier.Kind == ServiceCreatorKind.Factory)
                 {
                     factory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
@@ -239,13 +239,13 @@ namespace Collie.ServiceLookup
         protected internal enum ServiceLifetimeResolution { Direct, Delegated, Unresolvable };
         protected internal ServiceLifetimeResolution GetLiftetimeResolution(ServiceLifetime lifetime)
         {
-            switch(lifetime)
+            switch (lifetime)
             {
                 case ServiceLifetime.Singleton:
                     return IsRootContainer ? ServiceLifetimeResolution.Direct : ServiceLifetimeResolution.Delegated;
                 case ServiceLifetime.TenantSingleton:
-                    if(IsRootContainer) { return ServiceLifetimeResolution.Unresolvable; }
-                    else if(IsTenantContainer) { return ServiceLifetimeResolution.Direct; }
+                    if (IsRootContainer) { return ServiceLifetimeResolution.Unresolvable; }
+                    else if (IsTenantContainer) { return ServiceLifetimeResolution.Direct; }
                     else { return ServiceLifetimeResolution.Delegated; }
                 default:
                     return (IsRootContainer || IsTenantContainer) ? ServiceLifetimeResolution.Unresolvable : ServiceLifetimeResolution.Direct;
@@ -254,7 +254,7 @@ namespace Collie.ServiceLookup
 
         protected internal object GetDelegatedImplementation(ServiceIdentifier identifier, Type[] callChain)
         {
-            switch(identifier.Lifetime)
+            switch (identifier.Lifetime)
             {
                 case ServiceLifetime.Singleton:
                     return rootContainer.GetImplementation(identifier, callChain);
@@ -262,7 +262,7 @@ namespace Collie.ServiceLookup
                     return tenantContainer.GetImplementation(identifier, callChain);
                 default:
                     throw new ArgumentException("Service lifetime not delegated.");
-                    
+
             }
         }
 
@@ -280,11 +280,11 @@ namespace Collie.ServiceLookup
                     // TODO: dispose managed state (managed objects)
                 }
 
-                foreach(var disposable in this.resolvedImplementations.Values.Select(d => d as IDisposable).Where(d => d != null))
+                foreach (var disposable in this.resolvedImplementations.Values.Select(d => d as IDisposable).Where(d => d != null))
                 {
                     disposable.Dispose();
                 }
-                if(IsTenantContainer)
+                if (IsTenantContainer)
                 {
                     tenantManager.ReleaseTenant(this.tenantKey);
                     tenantContainer = null;
