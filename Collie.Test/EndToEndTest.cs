@@ -88,5 +88,30 @@ namespace Collie.Test
             Assert.Equal(1, scope2.GetService<Tuple<int>>().Item1);
 
         }
+
+        [Fact]
+        public void TestMultitenancyEnumerable()
+        {
+            int tenantId = 0;
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddTenantSingleton<IServiceB, DefaultServiceB>();
+            catalog.AddScoped<IServiceA, DefaultServiceC>();
+            catalog.AddScoped<Tuple<int>>(container => new Tuple<int>(tenantId++));
+
+            IServiceContainer container = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>));
+
+            var globalSvcA = container.GetService<IEnumerable<IServiceA>>();
+            Assert.NotNull(globalSvcA);
+            Assert.Single(globalSvcA);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(new ServiceCatalog());
+            var scope1SvcA = scope1.GetService<IEnumerable<IServiceA>>();
+
+            Assert.NotNull(scope1SvcA);
+            Assert.Equal(2, scope1SvcA.Count());
+            Assert.Equal(0, scope1.GetService<Tuple<int>>().Item1);
+        }
     }
 }

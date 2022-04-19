@@ -48,7 +48,9 @@ namespace Collie.ServiceLookup
 
         protected object tenantKey;
 
-        protected int tenantCacheSize = 0;
+        public int TenantCacheSize { get; init; } = 0;
+
+        public bool IgnoreUnresolvableEnumerables { get; init; } = true;
 
         protected ServiceLifetime containerType;
 
@@ -62,12 +64,11 @@ namespace Collie.ServiceLookup
         public ServiceContainer(IServiceCatalog services) : this(services, (container) => SingleTenantKey, typeof(object)) { }
 
         //Root container initialization
-        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, int tenantCacheSize = 0)
+        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType)
         {
             this.services = services;
             this.tenantKeySelector = keySelector;
             this.tenantKeyType = keyType;
-            this.tenantCacheSize = tenantCacheSize;
 
             containerType = ServiceLifetime.Singleton;
 
@@ -107,7 +108,7 @@ namespace Collie.ServiceLookup
             serviceFactoryGenerator = IsRootContainer ? new ExpressionServiceFactory() : (IServiceFactoryGenerator)rootContainer.GetService(IServiceFactoryGeneratorType);
             serviceCreatorCache = IsRootContainer ? new ServiceCreatorCache() : (ServiceCreatorCache)rootContainer.GetService(ServiceCreatorCacheType);
             scopeBuilder = IsRootContainer ? new DefaultScopeBuilder(services, this, tenantKeySelector, tenantKeyType) : (IScopeBuilder)rootContainer.GetService(IScopeBuilderType);
-            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, tenantCacheSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
+            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, TenantCacheSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
             foreach (var svc in services)
@@ -152,7 +153,7 @@ namespace Collie.ServiceLookup
             }
             else if (serviceType.IsInterface && serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == IEnumerableType)
             {
-                definition = new ServiceDefinition(serviceType, ServiceLifetime.Scoped, serviceType);
+                definition = new ServiceDefinition(serviceType, this.containerType, serviceType);
             }
             else if (serviceType.IsGenericType && (genericType = serviceType.GetGenericTypeDefinition()) != null && serviceDefinitionsByType.ContainsKey(genericType))
             {
@@ -189,7 +190,15 @@ namespace Collie.ServiceLookup
         public IEnumerable<ServiceIdentifier> GetImplementationTypes(Type serviceType)
         {
             var genericType = serviceType.IsGenericType ? serviceType.GetGenericTypeDefinition() : null;
-            return services.Where(sd => sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType)).Select(sd => new ServiceIdentifier(serviceType, sd));
+            return services.Where(sd => {
+                var lifetimeResolution = GetLiftetimeResolution(sd.Lifetime);
+                if(lifetimeResolution == ServiceLifetimeResolution.Unresolvable && !IgnoreUnresolvableEnumerables)
+                {
+                    throw new UnresolvableDependencyException(typeof(IEnumerable<>).MakeGenericType(serviceType), sd.ServiceType);
+                }
+                return (GetLiftetimeResolution(sd.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                     && (sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType));
+            }).Select(sd => new ServiceIdentifier(serviceType, sd));
         }
 
         public object GetImplementation(ServiceIdentifier identifier, Type[] callChain)
