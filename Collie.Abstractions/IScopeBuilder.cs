@@ -13,6 +13,6 @@ namespace Collie.Abstractions
         /// </summary>
         /// <param name="scopedServices"></param>
         /// <returns>The new container</returns>
-        IServiceContainer Create(IServiceCatalog scopedServices);
+        IServiceContainer Create(IServiceCatalog scopedServices = null);
     }
 }

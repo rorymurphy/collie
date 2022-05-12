@@ -119,7 +119,7 @@ namespace Collie.ServiceLookup.Expressions
 
 
         protected static readonly ConstructorInfo WrapperServiceContainerConstructor = typeof(WrapperServiceContainer).GetConstructor(new Type[] { typeof(ServiceContainer), typeof(Type[]) });
-        struct WrapperServiceContainer : IServiceContainer
+        struct WrapperServiceContainer : IServiceContainer, IServiceProvider
         {
             private IServiceContainerExtended inner;
             private Type[] callChain;

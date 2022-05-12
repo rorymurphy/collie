@@ -40,6 +40,30 @@ namespace Collie.Test
         }
 
         [Fact]
+        public void TestSingleTenantIntegralTypeResolution()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddScoped<IServiceB, DefaultServiceB>();
+            catalog.AddTransient<int>(123);
+
+            IServiceContainer container = new ServiceContainer(catalog);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(null);
+
+            var scope1SvcA = scope1.GetService<IServiceA>();
+            var scope1SvcB = scope1.GetService<IServiceB>();
+
+            Assert.NotNull(scope1SvcA);
+            Assert.NotNull(scope1SvcB);
+            Assert.Equal(123, scope1.GetService<int>());
+            Assert.Equal(scope1SvcA, scope1.GetService<IServiceA>());
+            Assert.Equal(scope1SvcB, scope1.GetService<IServiceB>());
+
+        }
+
+        [Fact]
         public void TestSingleTenantEnumerableResolution()
         {
             var catalog = new ServiceCatalog();
@@ -69,9 +93,9 @@ namespace Collie.Test
             catalog.AddTenantSingleton<IServiceB, DefaultServiceB>();
             catalog.AddScoped<Tuple<int>>(container => new Tuple<int>(tenantId++));
 
-            IServiceContainer container = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>));
+            IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>));
 
-            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scopeBuilder = rootContainer.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(new ServiceCatalog());
             var scope1SvcB = scope1.GetService<IServiceB>();
 

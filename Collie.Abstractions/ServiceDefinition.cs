@@ -8,7 +8,7 @@ namespace Collie.Abstractions
 {
     public class ServiceDefinition
     {
-        protected ServiceDefinition(Type serviceType, ServiceLifetime lifetime) {
+        public ServiceDefinition(Type serviceType, ServiceLifetime lifetime) {
             this.ServiceType = serviceType ?? throw new ArgumentNullException(nameof(serviceType));
             this.Lifetime = lifetime;
         }
@@ -27,7 +27,6 @@ namespace Collie.Abstractions
 
         public ServiceDefinition(Type serviceType, ServiceLifetime lifetime, Func<IServiceContainer, object> factory) : this(serviceType, lifetime)
         {
-
             this.ServiceFactory = factory;
         }
 

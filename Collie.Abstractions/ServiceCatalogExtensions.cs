@@ -46,11 +46,12 @@ namespace Collie.Abstractions
 
         public static IServiceCatalog AddWithLifetime<TService>(IServiceCatalog services, Func<IServiceContainer, TService> factory, ServiceLifetime lifetime)
         {
+            if(services == null) { throw new ArgumentNullException(nameof(services)); }
+            if (factory == null) { throw new ArgumentNullException(nameof(factory)); }
+
             var objFactory = factory as Func<IServiceContainer, object>;
-            if(objFactory == null)
-            {
-                throw new ArgumentException("Invalid factory function");
-            }
+            objFactory = objFactory ?? ((IServiceContainer c) => (object)factory(c));
+
             services.Add(new ServiceDefinition(typeof(TService), lifetime, objFactory));
             return services;
         }

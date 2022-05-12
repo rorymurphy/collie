@@ -56,27 +56,15 @@ namespace Collie.ServiceLookup
                 evictableKeys.Remove(key);
                 if (!success)
                 {
-                    //If it still hasn't been initialized by someone else, I should do the initialization
-                    if(!activeServiceContainers.ContainsKey(key))
-                    {
-                        while(activeServiceContainers.Count > targetTenantCount && evictableKeys.Count > 0)
-                        {
-                            var toRemove = evictableKeys.First();
-                            evictableKeys.Remove(toRemove);
-                            activeServiceContainers.Remove(toRemove);
-                        }
-
-                        var tenantContainer = new ServiceContainer(services, rootContainer, keySelector, keyType, key);
-                        activeServiceContainers.Add(key, new Tuple<int, ServiceContainer>(1, tenantContainer));
-                    }
+                    var tenantContainer = new ServiceContainer(services, rootContainer, keySelector, keyType, key);
+                    activeServiceContainers.Add(key, new Tuple<int, ServiceContainer>(1, tenantContainer));
                 } else
                 {
                     var updated = new Tuple<int, ServiceContainer>(entry.Item1 + 1, entry.Item2);
                     activeServiceContainers[key] = updated;
                 }
-
-                tenantLocks.TryRemove(key, out lockObj);
             }
+            while (!tenantLocks.TryRemove(key, out lockObj)) { }
 
             return activeServiceContainers[key].Item2;
         }
@@ -103,6 +91,7 @@ namespace Collie.ServiceLookup
                     if (success)
                     {
                         var updated = new Tuple<int, ServiceContainer>(Math.Max(0, entry.Item1 - 1), entry.Item2);
+                        activeServiceContainers[key] = updated;
                         if (updated.Item1 == 0) { evictableKeys.Add(key); }
                     }
 
@@ -115,6 +104,7 @@ namespace Collie.ServiceLookup
                     }
                 }
 
+                while (!tenantLocks.TryRemove(key, out lockObj)) { }
             }
         }
     }

@@ -1,8 +1,9 @@
 ﻿using Collie.Abstractions;
+using Collie.ServiceLookup;
 using System;
 using System.Collections.Generic;
 
-namespace Collie.ServiceLookup
+namespace Collie
 {
     interface IServiceContainerExtended : IServiceContainer
     {

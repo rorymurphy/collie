@@ -1,5 +1,9 @@
 ﻿using Collie.Abstractions;
+using Collie.Compatibility;
+using Collie.ServiceLookup;
 using Collie.ServiceLookup.Expressions;
+using ServiceLifetime = Collie.Abstractions.ServiceLifetime;
+using MSFTDI = Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -7,9 +11,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Collie.ServiceLookup
+namespace Collie
 {
-    class ServiceContainer : IServiceContainerExtended, IDisposable
+    class ServiceContainer : IServiceContainerExtended, IServiceProvider, IDisposable
     {
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly Type IServiceFactoryGeneratorType = typeof(IServiceFactoryGenerator);
@@ -17,6 +21,7 @@ namespace Collie.ServiceLookup
         private static readonly Type IScopeBuilderType = typeof(IScopeBuilder);
         private static readonly Type ServiceCreatorCacheType = typeof(ServiceCreatorCache);
         private static readonly Type ITenantManagerType = typeof(ITenantManager);
+        private static readonly Type IServiceScopeFactoryType = typeof(MSFTDI.IServiceScopeFactory);
 
         private bool disposedValue;
 
@@ -47,6 +52,8 @@ namespace Collie.ServiceLookup
         protected Type tenantKeyType;
 
         protected object tenantKey;
+
+        protected MSFTDI.IServiceScopeFactory serviceScopeFactory;
 
         public int TenantCacheSize { get; init; } = 0;
 
@@ -109,6 +116,7 @@ namespace Collie.ServiceLookup
             serviceCreatorCache = IsRootContainer ? new ServiceCreatorCache() : (ServiceCreatorCache)rootContainer.GetService(ServiceCreatorCacheType);
             scopeBuilder = IsRootContainer ? new DefaultScopeBuilder(services, this, tenantKeySelector, tenantKeyType) : (IScopeBuilder)rootContainer.GetService(IScopeBuilderType);
             tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, TenantCacheSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
+            serviceScopeFactory = IsRootContainer ? new ServiceScopeFactory(scopeBuilder) : (MSFTDI.IServiceScopeFactory)rootContainer.GetService(IServiceScopeFactoryType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
             foreach (var svc in services)
@@ -133,6 +141,7 @@ namespace Collie.ServiceLookup
             if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
             else if (serviceType == IServiceContainerType) { return this; }
             else if (serviceType == IScopeBuilderType) { return scopeBuilder; }
+            else if (serviceType == IServiceScopeFactoryType) { return serviceScopeFactory; }
             else if (serviceType == IServiceFactoryGeneratorType) { return serviceFactoryGenerator; }
             else if (serviceType == ServiceCreatorCacheType) { return serviceCreatorCache; }
             else if (serviceType == ITenantManagerType) { return tenantManager; }
@@ -224,24 +233,33 @@ namespace Collie.ServiceLookup
 
         protected object CreateLocalService(ServiceIdentifier identifier, Type[] callChain)
         {
-            var factory = serviceCreatorCache.GetOrAdd(identifier, key =>
+            object result = null;
+            if (identifier.Kind == ServiceCreatorKind.Constant)
             {
-                Func<IServiceContainerExtended, Type[], object> factory = null;
-                if (identifier.Kind == ServiceCreatorKind.Factory)
+                result = identifier.Distinguisher;
+            } else {
+                var factory = serviceCreatorCache.GetOrAdd(identifier, key =>
                 {
-                    factory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
-                }
-                else
-                {
-                    factory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
-                }
+                    Func<IServiceContainerExtended, Type[], object> innerFactory = null;
+                    if (identifier.Kind == ServiceCreatorKind.Factory)
+                    {
+                        innerFactory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
+                    }
+                    else
+                    {
+                        innerFactory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
+                    }
 
-                return factory;
-            });
+                    return innerFactory;
+                });
 
-            var result = factory(this, callChain);
-            //Need to add it to the disposables here to ensure transients are also caught.
-            this.disposables.Add(result);
+                result = factory(this, callChain);
+                //Need to add it to the disposables here to ensure transients are also caught.
+                //Transients are not disposed by the container, as the instance may be reused
+                //elsewhere, hence they are not added here.
+                this.disposables.Add(result);
+            }
+
             return result;
         }
 

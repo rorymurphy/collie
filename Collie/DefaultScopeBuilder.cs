@@ -26,7 +26,7 @@ namespace Collie.ServiceLookup
             this.keyType = keyType;
         }
 
-        public IServiceContainer Create(IServiceCatalog scopedServices)
+        public IServiceContainer Create(IServiceCatalog scopedServices = null)
         {
             //TODO: update to allow overrides or additions (rather than just additions)
             ServiceCatalog effectiveServices = new ServiceCatalog(services);
