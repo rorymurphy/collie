@@ -24,5 +24,16 @@ namespace Collie
             services.Add(new TenantSingletonServiceDescriptor(typeof(TService), objFactory));
             return services;
         }
+
+        public static IServiceCollection TenantedServiceCollection(this IServiceCollection services)
+        {
+            if(services is TenantedServiceCollectionProxy)
+            {
+                return services;
+            } else
+            {
+                return new TenantedServiceCollectionProxy(services);
+            }
+        }
     }
 }
