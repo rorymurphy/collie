@@ -21,6 +21,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Collie.Compatibility.Abstra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collie.Compatibility", "Collie.Compatibility\Collie.Compatibility.csproj", "{26DDAE27-ECC6-441B-8638-4A9FA414D9C2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Collie.Compatibility.Test", "Collie.Compatibility.Test\Collie.Compatibility.Test.csproj", "{6053AA97-065D-4215-A1BC-D044E55C91AF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,6 +49,10 @@ Global
 		{26DDAE27-ECC6-441B-8638-4A9FA414D9C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{26DDAE27-ECC6-441B-8638-4A9FA414D9C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{26DDAE27-ECC6-441B-8638-4A9FA414D9C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6053AA97-065D-4215-A1BC-D044E55C91AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6053AA97-065D-4215-A1BC-D044E55C91AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6053AA97-065D-4215-A1BC-D044E55C91AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6053AA97-065D-4215-A1BC-D044E55C91AF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

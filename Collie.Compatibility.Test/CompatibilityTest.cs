@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Collie.Test
+namespace Collie.Compatibility.Test
 {
     public class CompatibilityTest
     {
