@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Collie.Compatibility
 {
-    class MultitenantServiceProviderFactory : IServiceProviderFactory<ContainerBuilder>
+    public class MultitenantServiceProviderFactory : IServiceProviderFactory<ContainerBuilder>
     {
         private Func<IServiceProvider, object> keySelector;
         private Type keyType;

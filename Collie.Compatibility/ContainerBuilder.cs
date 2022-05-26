@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Collie.Compatibility
 {
-    class ContainerBuilder
+    public class ContainerBuilder
     {
         public ContainerBuilder(IServiceCollection services)
         {

@@ -16,11 +16,14 @@ namespace Collie.Compatibility.Test
         {
             var services = new ServiceCollection();
             services.AddSingleton<IServiceA, DefaultServiceA>();
-            services.AddTenantSingleton<IServiceB, DefaultServiceB>();
-            services.AddScoped<IServiceC, DefaultServiceC>();
+            services.TenantedServiceCollection()
+                .AddSingleton<IServiceB, DefaultServiceB>()
+                .AddScoped<IServiceC, DefaultServiceC>();
 
             int key = 0;
-            var provider = services.BuildCollieProvider(sc => key++, typeof(int));
+            var providerFactory = new MultitenantServiceProviderFactory(sc => key++, typeof(int));
+            var builder = providerFactory.CreateBuilder(services);
+            var provider = providerFactory.CreateServiceProvider(builder);
             return (services, provider);
         }
 
