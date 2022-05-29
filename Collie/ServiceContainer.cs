@@ -18,6 +18,7 @@ namespace Collie
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly Type IServiceFactoryGeneratorType = typeof(IServiceFactoryGenerator);
         private static readonly Type IServiceContainerType = typeof(IServiceContainer);
+        private static readonly Type IServiceProviderType = typeof(IServiceProvider);
         private static readonly Type IScopeBuilderType = typeof(IScopeBuilder);
         private static readonly Type ServiceCreatorCacheType = typeof(ServiceCreatorCache);
         private static readonly Type ITenantManagerType = typeof(ITenantManager);
@@ -140,6 +141,7 @@ namespace Collie
         {
             if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
             else if (serviceType == IServiceContainerType) { return this; }
+            else if (serviceType == IServiceProviderType) { return this; }
             else if (serviceType == IScopeBuilderType) { return scopeBuilder; }
             else if (serviceType == IServiceScopeFactoryType) { return serviceScopeFactory; }
             else if (serviceType == IServiceFactoryGeneratorType) { return serviceFactoryGenerator; }
@@ -241,13 +243,23 @@ namespace Collie
                 var factory = serviceCreatorCache.GetOrAdd(identifier, key =>
                 {
                     Func<IServiceContainerExtended, Type[], object> innerFactory = null;
-                    if (identifier.Kind == ServiceCreatorKind.Factory)
+                    switch(identifier.Kind)
                     {
-                        innerFactory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
-                    }
-                    else
-                    {
-                        innerFactory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
+                        case ServiceCreatorKind.Factory:
+                            innerFactory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
+                            break;
+                        case ServiceCreatorKind.Generic:
+                            var genericTypeDef = ((Type)identifier.Distinguisher);
+                            if (identifier.ServiceType.GetGenericArguments().Length != genericTypeDef.GetGenericArguments().Length)
+                            {
+                                throw new Exception("Service type and implementation type generic type parameter count mismatch, unable to infer implementation type parameters.");
+                            }
+                            var concreteType = ((Type)identifier.Distinguisher).MakeGenericType(identifier.ServiceType.GetGenericArguments());
+                            innerFactory = serviceFactoryGenerator.CreateFactory(concreteType);
+                            break;
+                        default:
+                            innerFactory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
+                            break;
                     }
 
                     return innerFactory;
