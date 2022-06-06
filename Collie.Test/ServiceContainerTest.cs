@@ -91,16 +91,70 @@ namespace Collie.Test
             catalog.AddSingleton<IServiceA, DefaultServiceA>();
             catalog.AddScoped<IServiceB, DefaultServiceB>();
             catalog.AddTransient<IServiceA, DefaultServiceC>();
-            catalog.Add(new ServiceDefinition(typeof(IServiceD<>), ServiceLifetime.Transient, typeof(DefaultServiceD<>)));
+            catalog.Add(new ServiceDefinition(typeof(IServiceG<>), ServiceLifetime.Transient, typeof(DefaultServiceD<>)));
 
             IServiceContainer container = new ServiceContainer(catalog);
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
 
-            var scope1SvcD = scope1.GetService<IServiceD<int>>();
+            var scope1SvcD = scope1.GetService<IServiceG<int>>();
 
             Assert.NotNull(scope1SvcD);
+        }
+
+        [Fact]
+        public void TestExplicitGenericDeclarationResolution()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddScoped<IServiceB, DefaultServiceB>();
+            catalog.AddTransient<IServiceA, DefaultServiceC>();
+            catalog.Add(new ServiceDefinition(typeof(IServiceG<>), ServiceLifetime.Scoped, typeof(DefaultServiceD<>)));
+            catalog.AddScoped<IServiceG<int>, AlternateServiceD<int>>();
+
+            IServiceContainer container = new ServiceContainer(catalog);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(null);
+
+            var scope1SvcD = scope1.GetService<IServiceG<int>>();
+
+            Assert.NotNull(scope1SvcD);
+            Assert.Equal(typeof(AlternateServiceD<int>), scope1SvcD.GetType());
+        }
+
+        [Fact]
+        public void TestMultipleConstructorInstantiation()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddScoped<IServiceB, DefaultServiceB>();
+
+            catalog.AddScoped<CompositeServiceE, CompositeServiceE>();
+
+            IServiceContainer container = new ServiceContainer(catalog);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(null);
+
+            var svcE = scope1.GetService<CompositeServiceE>();
+
+            Assert.NotNull(svcE);
+            Assert.NotNull(svcE.ServiceA);
+            Assert.NotNull(svcE.ServiceB);
+            Assert.Null(svcE.ServiceC);
+
+            var extraCatalog = new ServiceCatalog();
+            extraCatalog.AddScoped<IServiceC, DefaultServiceC>();
+            var scope2 = scopeBuilder.Create(extraCatalog);
+
+            svcE = scope2.GetService<CompositeServiceE>();
+
+            Assert.NotNull(svcE);
+            Assert.NotNull(svcE.ServiceA);
+            Assert.NotNull(svcE.ServiceB);
+            Assert.NotNull(svcE.ServiceC);
         }
 
         [Fact]

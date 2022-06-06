@@ -1,9 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.0.8</Version>
+    <Version>1.0.10</Version>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageProjectUrl>https://github.com/rorymurphy/collie</PackageProjectUrl>
     <Authors>Rory Murphy</Authors>
@@ -13,8 +13,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Collie.Compatibility.Abstractions\Collie.Compatibility.Abstractions.csproj" />
-    <ProjectReference Include="..\Collie\Collie.csproj" />
+    <ProjectReference Include="..\Collie.Compatibility.Abstractions\Collie.Compatibility.Abstractions.csproj">
+      <Private>true</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\Collie\Collie.csproj">
+      <Private>true</Private>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>

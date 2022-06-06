@@ -10,5 +10,7 @@ namespace Collie
         object GetImplementation(ServiceIdentifier identifier, Type[] callChain);
         IEnumerable<ServiceIdentifier> GetImplementationTypes(Type serviceType);
         object GetServiceInternal(Type serviceType, Type[] callChain);
+
+        bool IsResolvable(Type serviceType, Type[] callChain);
     }
 }

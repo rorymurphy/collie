@@ -280,6 +280,8 @@ namespace Collie
         {
             switch (lifetime)
             {
+                case ServiceLifetime.Transient:
+                    return ServiceLifetimeResolution.Direct;
                 case ServiceLifetime.Singleton:
                     return IsRootContainer ? ServiceLifetimeResolution.Direct : ServiceLifetimeResolution.Delegated;
                 case ServiceLifetime.TenantSingleton:
@@ -344,6 +346,47 @@ namespace Collie
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        public bool IsResolvable(Type serviceType, Type[] callChain)
+        {
+            if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
+            if (serviceType.IsInterface && serviceType.IsGenericTypeDefinition) { return false; }
+            if (callChain.Contains(serviceType))
+            {
+                return false;
+            }
+
+            if ( resolvedServices.ContainsKey(serviceType)
+                || serviceType == IServiceContainerType
+                || serviceType == IServiceProviderType
+                || serviceType == IScopeBuilderType
+                || serviceType == IServiceScopeFactoryType
+                || serviceType == IServiceFactoryGeneratorType
+                || serviceType == ServiceCreatorCacheType
+                || serviceType == ITenantManagerType
+                || serviceType.IsInterface && serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == IEnumerableType) { return true; }
+
+
+
+
+            Type genericType = null;
+            ServiceDefinition definition = null;
+            if (serviceDefinitionsByType.ContainsKey(serviceType))
+            {
+                definition = serviceDefinitionsByType[serviceType];
+            }
+            else if (serviceType.IsGenericType && (genericType = serviceType.GetGenericTypeDefinition()) != null && serviceDefinitionsByType.ContainsKey(genericType))
+            {
+                definition = serviceDefinitionsByType[genericType];
+            }
+            else
+            {
+                return false;
+            }
+
+            var lifetimeResolution = GetLiftetimeResolution(definition.Lifetime);
+            return lifetimeResolution != ServiceLifetimeResolution.Unresolvable;
         }
     }
 }

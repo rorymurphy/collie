@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Collie.Test.SampleServices
 {
-    interface IServiceD<T>
+    class AlternateServiceD<T> : IServiceG<T>
     {
     }
 }
