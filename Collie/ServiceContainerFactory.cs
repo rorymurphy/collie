@@ -9,9 +9,9 @@ namespace Collie
 {
     public static class ServiceContainerFactory
     {
-        public static IServiceContainer Create(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, int tenantCacheSize = 0)
+        public static IServiceContainer Create(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, ServiceContainerOptions options)
         {
-            return new ServiceContainer(services, keySelector, keyType) { TenantCacheSize = tenantCacheSize };
+            return new ServiceContainer(services, keySelector, keyType) { TenantCacheSize = options.TenantCacheSize, IgnoreUnresolvableEnumerables = options.IgnoreUnresolvableEnumerables };
         }
     }
 }

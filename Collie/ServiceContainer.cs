@@ -207,7 +207,7 @@ namespace Collie
                 {
                     throw new UnresolvableDependencyException(typeof(IEnumerable<>).MakeGenericType(serviceType), sd.ServiceType);
                 }
-                return (GetLiftetimeResolution(sd.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                return (lifetimeResolution != ServiceLifetimeResolution.Unresolvable)
                      && (sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType));
             }).Select(sd => new ServiceIdentifier(serviceType, sd));
         }

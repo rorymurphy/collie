@@ -17,7 +17,10 @@ namespace Collie.Compatibility
             this.services = services;
         }
 
-        public ServiceDescriptor this[int index] { get => services[index]; set => services[index] = value; }
+        public ServiceDescriptor this[int index] {
+            get => services[index]; 
+            set => services[index] = TranslateSingleton(value);
+        }
 
         public int Count => services.Count;
 
@@ -25,13 +28,7 @@ namespace Collie.Compatibility
 
         public void Add(ServiceDescriptor item)
         {
-            if(item.Lifetime == ServiceLifetime.Singleton)
-            {
-                services.Add(TranslateSingleton(item));
-            } else
-            {
-                services.Add(item);
-            }
+            services.Add(TranslateSingleton(item));
         }
 
         public void Clear()
@@ -61,14 +58,7 @@ namespace Collie.Compatibility
 
         public void Insert(int index, ServiceDescriptor item)
         {
-            if (item.Lifetime == ServiceLifetime.Singleton)
-            {
-                services.Insert(index, TranslateSingleton(item));
-            }
-            else
-            {
-                services.Insert(index, item);
-            }
+            services.Insert(index, TranslateSingleton(item));
         }
 
         public bool Remove(ServiceDescriptor item)
@@ -86,14 +76,23 @@ namespace Collie.Compatibility
             return services.GetEnumerator();
         }
 
-        private ServiceDescriptor TranslateSingleton(ServiceDescriptor descriptor)
+        internal static ServiceDescriptor TranslateSingleton(ServiceDescriptor descriptor)
         {
-            if(descriptor.ImplementationFactory != null)
+            if (descriptor.Lifetime == ServiceLifetime.Singleton)
             {
-                return new TenantSingletonServiceDescriptor(descriptor.ServiceType, descriptor.ImplementationFactory);
-            } else if(descriptor.ImplementationType != null)
-            {
-                return new TenantSingletonServiceDescriptor(descriptor.ServiceType, descriptor.ImplementationType);
+                if (descriptor.ImplementationFactory != null)
+                {
+                    return new TenantSingletonServiceDescriptor(descriptor.ServiceType, descriptor.ImplementationFactory);
+                }
+                else if (descriptor.ImplementationType != null)
+                {
+                    return new TenantSingletonServiceDescriptor(descriptor.ServiceType, descriptor.ImplementationType);
+                }
+                else
+                {
+                    //If it truly is simply a singleton instance, go ahead and leave the scope alone.
+                    return descriptor;
+                }
             } else
             {
                 return descriptor;

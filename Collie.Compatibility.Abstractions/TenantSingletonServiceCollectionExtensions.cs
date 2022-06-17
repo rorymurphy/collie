@@ -35,5 +35,35 @@ namespace Collie
                 return new TenantedServiceCollectionProxy(services);
             }
         }
+
+        public static IServiceCollection ConvertSingletonsToTenantSingletons(this IServiceCollection services, IEnumerable<Type> typesToConvert)
+        {
+            var types = new HashSet<Type>(typesToConvert);
+            for(int i = 0; i < services.Count; i++)
+            {
+                var t = services[i];
+                if(types.Contains(t.ServiceType))
+                {
+                    services[i] = TenantedServiceCollectionProxy.TranslateSingleton(services[i]);
+                }
+            }
+
+            return services;
+        }
+
+        public static IServiceCollection ConvertAllSingletonsToTenantSingletons(this IServiceCollection services, IEnumerable<Type> exclusions)
+        {
+            var exclude = new HashSet<Type>(exclusions);
+            for (int i = 0; i < services.Count; i++)
+            {
+                var t = services[i];
+                if (!exclude.Contains(t.ServiceType))
+                {
+                    services[i] = TenantedServiceCollectionProxy.TranslateSingleton(services[i]);
+                }
+            }
+
+            return services;
+        }
     }
 }

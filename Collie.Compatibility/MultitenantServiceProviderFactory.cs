@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Collie.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,11 +12,13 @@ namespace Collie.Compatibility
     {
         private Func<IServiceProvider, object> keySelector;
         private Type keyType;
+        private ServiceContainerOptions options;
 
-        public MultitenantServiceProviderFactory(Func<IServiceProvider, object> keySelector, Type keyType)
+        public MultitenantServiceProviderFactory(Func<IServiceProvider, object> keySelector, Type keyType, ServiceContainerOptions options = new ServiceContainerOptions())
         {
             this.keySelector = keySelector;
             this.keyType = keyType;
+            this.options = options;
         }
         public ContainerBuilder CreateBuilder(IServiceCollection services)
         {
@@ -24,7 +27,7 @@ namespace Collie.Compatibility
 
         public IServiceProvider CreateServiceProvider(ContainerBuilder containerBuilder)
         {
-            return containerBuilder.Services.BuildCollieProvider(keySelector, keyType);
+            return containerBuilder.Services.BuildCollieProvider(keySelector, keyType, options);
         }
     }
 }
