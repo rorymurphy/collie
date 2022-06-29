@@ -158,6 +158,45 @@ namespace Collie.Test
         }
 
         [Fact]
+        public void TestContextualOverrides()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddScoped<IServiceA, DefaultServiceC>();
+
+            IServiceContainer container = new ServiceContainer(catalog, true);
+
+            var rootSvcA = container.GetService<IServiceA>();
+            Assert.IsType<DefaultServiceA>(rootSvcA);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(null);
+
+            var scope1SvcA = scope1.GetService<IServiceA>();
+            Assert.IsType<DefaultServiceC>(scope1SvcA);
+        }
+
+        public void TestContextualOverridesDisabled()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddScoped<IServiceA, DefaultServiceC>();
+
+            IServiceContainer container = new ServiceContainer(catalog, true);
+
+            Assert.Throws<Exception>(() =>
+            {
+                var rootSvcA = container.GetService<IServiceA>();
+            });
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(null);
+
+            var scope1SvcA = scope1.GetService<IServiceA>();
+            Assert.IsType<DefaultServiceC>(scope1SvcA);
+        }
+
+        [Fact]
         public void TestMultitenancyBasic()
         {
             int tenantId = 0;

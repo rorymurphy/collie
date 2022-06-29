@@ -25,16 +25,18 @@ namespace Collie.ServiceLookup
         protected HashSet<object> evictableKeys = new HashSet<object>();
 
         protected int targetTenantCount = 0;
+        protected uint maxTenantCount = 0;
 
         protected ConcurrentDictionary<object, object> tenantLocks = new ConcurrentDictionary<object, object>();
 
-        public DefaultTenantManager(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, int targetTenantCount = 0)
+        public DefaultTenantManager(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, int targetTenantCount = 0, uint maxTenantCount = 0)
         {
             this.services = services;
             this.rootContainer = rootContainer;
             this.keySelector = keySelector;
             this.keyType = keyType;
             this.targetTenantCount = targetTenantCount;
+            this.maxTenantCount = maxTenantCount;
         }
 
         public ServiceContainer CaptureTenant(object key)
@@ -54,7 +56,10 @@ namespace Collie.ServiceLookup
             {
                 var success = activeServiceContainers.TryGetValue(key, out entry);
                 evictableKeys.Remove(key);
-                if (!success)
+                if (!success && maxTenantCount > 0 && activeServiceContainers.Count >= maxTenantCount)
+                {
+                    throw new TenantLimitExceededException(key);
+                } else if (!success)
                 {
                     var tenantContainer = new ServiceContainer(services, rootContainer, keySelector, keyType, key);
                     activeServiceContainers.Add(key, new Tuple<int, ServiceContainer>(1, tenantContainer));

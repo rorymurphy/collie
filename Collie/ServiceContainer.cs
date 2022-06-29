@@ -56,10 +56,6 @@ namespace Collie
 
         protected MSFTDI.IServiceScopeFactory serviceScopeFactory;
 
-        public int TenantCacheSize { get; init; } = 0;
-
-        public bool IgnoreUnresolvableEnumerables { get; init; } = true;
-
         protected ServiceLifetime containerType;
 
         protected internal bool IsRootContainer { get { return containerType == ServiceLifetime.Singleton; } }
@@ -69,22 +65,33 @@ namespace Collie
         protected internal bool IsScopeContainer { get { return containerType == ServiceLifetime.Scoped; } }
 
         private static readonly object SingleTenantKey = new object();
-        public ServiceContainer(IServiceCatalog services) : this(services, (container) => SingleTenantKey, typeof(object)) { }
+
+        public int TenantCacheSize { get; init; }
+
+        public uint MaxTenantSize { get; init; }
+
+        public bool IgnoreUnresolvableEnumerables { get; init; } = true;
+
+        public bool ContextualOverrides { get; private set; }
+
+        public ServiceContainer(IServiceCatalog services, bool contextualOverrides = false) : this(services, (container) => SingleTenantKey, typeof(object), contextualOverrides) { }
 
         //Root container initialization
-        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType)
-        {
-            this.services = services;
-            this.tenantKeySelector = keySelector;
-            this.tenantKeyType = keyType;
-
-            containerType = ServiceLifetime.Singleton;
-
-            this.Initialize();
-        }
+        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
+            : this(ServiceLifetime.Singleton, services, null, keySelector, keyType, null, contextualOverrides)
+        { }
 
         //Tenant singleton container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key)
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
+            : this(ServiceLifetime.TenantSingleton, services, rootContainer, keySelector, keyType, key, contextualOverrides)
+        { }
+
+        //Scoped container initialization
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
+            : this(ServiceLifetime.Scoped, services, rootContainer, keySelector, keyType, null, contextualOverrides)
+        { }
+
+        private ServiceContainer(ServiceLifetime containerType, IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
         {
             this.services = services;
             this.tenantKeySelector = keySelector;
@@ -92,20 +99,8 @@ namespace Collie
             this.tenantKey = key;
 
             this.rootContainer = rootContainer;
-            this.containerType = ServiceLifetime.TenantSingleton;
-
-            this.Initialize();
-        }
-
-        //Scoped container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType)
-        {
-            this.services = services;
-            this.tenantKeySelector = keySelector;
-            this.tenantKeyType = keyType;
-
-            this.rootContainer = rootContainer;
-            this.containerType = ServiceLifetime.Scoped;
+            this.containerType = containerType;
+            this.ContextualOverrides = contextualOverrides;
 
             this.Initialize();
         }
@@ -120,9 +115,22 @@ namespace Collie
             serviceScopeFactory = IsRootContainer ? new ServiceScopeFactory(scopeBuilder) : (MSFTDI.IServiceScopeFactory)rootContainer.GetService(IServiceScopeFactoryType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
-            foreach (var svc in services)
+            if (ContextualOverrides)
             {
-                serviceDefinitionsByType[svc.ServiceType] = svc;
+                foreach (var svc in services)
+                {
+                    if (!serviceDefinitionsByType.ContainsKey(svc.ServiceType) || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                    {
+                        serviceDefinitionsByType[svc.ServiceType] = svc;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var svc in services)
+                {
+                    serviceDefinitionsByType[svc.ServiceType] = svc;
+                }
             }
 
             if (IsScopeContainer)

@@ -50,9 +50,26 @@ namespace Collie.Test
         }
 
         [Fact]
-        public void TestCreatesNewInstanceWhenOverLimit()
+        public void ThrowsExceptionWhenMaxLimitExceeded()
         {
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            int key = 0;
+            catalog.AddScoped<int>(sc => key++);
 
+            var container = new ServiceContainer(catalog, sc => sc.GetService<int>(), typeof(int));
+
+            var manager = new DefaultTenantManager(catalog, container, sc => sc.GetService<int>(), typeof(int), 0, 1);
+
+            var tenants = new ServiceContainer[100];
+
+            Assert.Throws<TenantLimitExceededException>(() =>
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    tenants[i] = manager.CaptureTenant(i);
+                }
+             });
         }
 
         [Fact]
