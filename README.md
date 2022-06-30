@@ -22,6 +22,22 @@ For the most basic use case, a ServiceCollection can be populated, and an IServi
 
     var scopedProvider = rootContainer.CreateScope().ServiceProvider;
 
+If using from ASP.NET Core, Collie provides the MultitenantServiceProviderFactory as shown below.
+
+    public static void Main(string[] args)
+    {
+        CreateHostBuilder(args).Build().Run();
+    }
+
+    public static IHostBuilder CreateHostBuilder(string[] args) =>
+        Host.CreateDefaultBuilder(args)
+            .UseServiceProviderFactory(new Collie.Compatibility.MultitenantServiceProviderFactory(k => k.GetRequiredService<KeyType>(), typeof(KeyType), new Collie.Abstractions.ServiceContainerOptions() { IgnoreUnresolvableEnumerables = true }))
+            .ConfigureWebHostDefaults(webBuilder =>
+            {
+                webBuilder.UseStartup<Startup>();
+            });
+    }
+
 For more advanced usage via the Collie API, see the unit test suite.
 
 ## Scalability
