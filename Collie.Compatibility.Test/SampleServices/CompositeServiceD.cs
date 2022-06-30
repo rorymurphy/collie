@@ -10,6 +10,7 @@ namespace Collie.Test.SampleServices
     {
         public CompositeServiceD(IServiceA a, IServiceB b, IServiceC c)
         {
+
         }
     }
 }

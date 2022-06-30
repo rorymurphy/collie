@@ -18,6 +18,7 @@ namespace Collie
         private static readonly Type IEnumerableType = typeof(IEnumerable<>);
         private static readonly Type IServiceFactoryGeneratorType = typeof(IServiceFactoryGenerator);
         private static readonly Type IServiceContainerType = typeof(IServiceContainer);
+        private static readonly Type IServiceProviderType = typeof(IServiceProvider);
         private static readonly Type IScopeBuilderType = typeof(IScopeBuilder);
         private static readonly Type ServiceCreatorCacheType = typeof(ServiceCreatorCache);
         private static readonly Type ITenantManagerType = typeof(ITenantManager);
@@ -55,10 +56,6 @@ namespace Collie
 
         protected MSFTDI.IServiceScopeFactory serviceScopeFactory;
 
-        public int TenantCacheSize { get; init; } = 0;
-
-        public bool IgnoreUnresolvableEnumerables { get; init; } = true;
-
         protected ServiceLifetime containerType;
 
         protected internal bool IsRootContainer { get { return containerType == ServiceLifetime.Singleton; } }
@@ -68,22 +65,33 @@ namespace Collie
         protected internal bool IsScopeContainer { get { return containerType == ServiceLifetime.Scoped; } }
 
         private static readonly object SingleTenantKey = new object();
-        public ServiceContainer(IServiceCatalog services) : this(services, (container) => SingleTenantKey, typeof(object)) { }
+
+        public int TenantCacheSize { get; init; }
+
+        public uint MaxTenantSize { get; init; }
+
+        public bool IgnoreUnresolvableEnumerables { get; init; } = true;
+
+        public bool ContextualOverrides { get; private set; }
+
+        public ServiceContainer(IServiceCatalog services, bool contextualOverrides = false) : this(services, (container) => SingleTenantKey, typeof(object), contextualOverrides) { }
 
         //Root container initialization
-        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType)
-        {
-            this.services = services;
-            this.tenantKeySelector = keySelector;
-            this.tenantKeyType = keyType;
-
-            containerType = ServiceLifetime.Singleton;
-
-            this.Initialize();
-        }
+        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
+            : this(ServiceLifetime.Singleton, services, null, keySelector, keyType, null, contextualOverrides)
+        { }
 
         //Tenant singleton container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key)
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
+            : this(ServiceLifetime.TenantSingleton, services, rootContainer, keySelector, keyType, key, contextualOverrides)
+        { }
+
+        //Scoped container initialization
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
+            : this(ServiceLifetime.Scoped, services, rootContainer, keySelector, keyType, null, contextualOverrides)
+        { }
+
+        private ServiceContainer(ServiceLifetime containerType, IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
         {
             this.services = services;
             this.tenantKeySelector = keySelector;
@@ -91,20 +99,8 @@ namespace Collie
             this.tenantKey = key;
 
             this.rootContainer = rootContainer;
-            this.containerType = ServiceLifetime.TenantSingleton;
-
-            this.Initialize();
-        }
-
-        //Scoped container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType)
-        {
-            this.services = services;
-            this.tenantKeySelector = keySelector;
-            this.tenantKeyType = keyType;
-
-            this.rootContainer = rootContainer;
-            this.containerType = ServiceLifetime.Scoped;
+            this.containerType = containerType;
+            this.ContextualOverrides = contextualOverrides;
 
             this.Initialize();
         }
@@ -119,9 +115,22 @@ namespace Collie
             serviceScopeFactory = IsRootContainer ? new ServiceScopeFactory(scopeBuilder) : (MSFTDI.IServiceScopeFactory)rootContainer.GetService(IServiceScopeFactoryType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
-            foreach (var svc in services)
+            if (ContextualOverrides)
             {
-                serviceDefinitionsByType[svc.ServiceType] = svc;
+                foreach (var svc in services)
+                {
+                    if (!serviceDefinitionsByType.ContainsKey(svc.ServiceType) || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                    {
+                        serviceDefinitionsByType[svc.ServiceType] = svc;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var svc in services)
+                {
+                    serviceDefinitionsByType[svc.ServiceType] = svc;
+                }
             }
 
             if (IsScopeContainer)
@@ -140,6 +149,7 @@ namespace Collie
         {
             if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
             else if (serviceType == IServiceContainerType) { return this; }
+            else if (serviceType == IServiceProviderType) { return this; }
             else if (serviceType == IScopeBuilderType) { return scopeBuilder; }
             else if (serviceType == IServiceScopeFactoryType) { return serviceScopeFactory; }
             else if (serviceType == IServiceFactoryGeneratorType) { return serviceFactoryGenerator; }
@@ -205,7 +215,7 @@ namespace Collie
                 {
                     throw new UnresolvableDependencyException(typeof(IEnumerable<>).MakeGenericType(serviceType), sd.ServiceType);
                 }
-                return (GetLiftetimeResolution(sd.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                return (lifetimeResolution != ServiceLifetimeResolution.Unresolvable)
                      && (sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType));
             }).Select(sd => new ServiceIdentifier(serviceType, sd));
         }
@@ -241,13 +251,23 @@ namespace Collie
                 var factory = serviceCreatorCache.GetOrAdd(identifier, key =>
                 {
                     Func<IServiceContainerExtended, Type[], object> innerFactory = null;
-                    if (identifier.Kind == ServiceCreatorKind.Factory)
+                    switch(identifier.Kind)
                     {
-                        innerFactory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
-                    }
-                    else
-                    {
-                        innerFactory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
+                        case ServiceCreatorKind.Factory:
+                            innerFactory = serviceFactoryGenerator.CreateFactory(identifier.ServiceType, (Func<IServiceContainer, object>)identifier.Distinguisher);
+                            break;
+                        case ServiceCreatorKind.Generic:
+                            var genericTypeDef = ((Type)identifier.Distinguisher);
+                            if (identifier.ServiceType.GetGenericArguments().Length != genericTypeDef.GetGenericArguments().Length)
+                            {
+                                throw new Exception("Service type and implementation type generic type parameter count mismatch, unable to infer implementation type parameters.");
+                            }
+                            var concreteType = ((Type)identifier.Distinguisher).MakeGenericType(identifier.ServiceType.GetGenericArguments());
+                            innerFactory = serviceFactoryGenerator.CreateFactory(concreteType);
+                            break;
+                        default:
+                            innerFactory = serviceFactoryGenerator.CreateFactory((Type)identifier.Distinguisher);
+                            break;
                     }
 
                     return innerFactory;
@@ -268,6 +288,8 @@ namespace Collie
         {
             switch (lifetime)
             {
+                case ServiceLifetime.Transient:
+                    return ServiceLifetimeResolution.Direct;
                 case ServiceLifetime.Singleton:
                     return IsRootContainer ? ServiceLifetimeResolution.Direct : ServiceLifetimeResolution.Delegated;
                 case ServiceLifetime.TenantSingleton:
@@ -332,6 +354,47 @@ namespace Collie
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
+        }
+
+        public bool IsResolvable(Type serviceType, Type[] callChain)
+        {
+            if (serviceType == null) { throw new ArgumentNullException(nameof(serviceType)); }
+            if (serviceType.IsInterface && serviceType.IsGenericTypeDefinition) { return false; }
+            if (callChain.Contains(serviceType))
+            {
+                return false;
+            }
+
+            if ( resolvedServices.ContainsKey(serviceType)
+                || serviceType == IServiceContainerType
+                || serviceType == IServiceProviderType
+                || serviceType == IScopeBuilderType
+                || serviceType == IServiceScopeFactoryType
+                || serviceType == IServiceFactoryGeneratorType
+                || serviceType == ServiceCreatorCacheType
+                || serviceType == ITenantManagerType
+                || serviceType.IsInterface && serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == IEnumerableType) { return true; }
+
+
+
+
+            Type genericType = null;
+            ServiceDefinition definition = null;
+            if (serviceDefinitionsByType.ContainsKey(serviceType))
+            {
+                definition = serviceDefinitionsByType[serviceType];
+            }
+            else if (serviceType.IsGenericType && (genericType = serviceType.GetGenericTypeDefinition()) != null && serviceDefinitionsByType.ContainsKey(genericType))
+            {
+                definition = serviceDefinitionsByType[genericType];
+            }
+            else
+            {
+                return false;
+            }
+
+            var lifetimeResolution = GetLiftetimeResolution(definition.Lifetime);
+            return lifetimeResolution != ServiceLifetimeResolution.Unresolvable;
         }
     }
 }
