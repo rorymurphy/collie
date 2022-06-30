@@ -6,10 +6,7 @@ using System.Threading.Tasks;
 
 namespace Collie.Test.SampleServices
 {
-    class CompositeServiceD
+    class DefaultServiceB : IServiceB
     {
-        public CompositeServiceD(IServiceA a, IServiceB b, IServiceC c)
-        {
-        }
     }
 }

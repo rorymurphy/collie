@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Collie.Test
+namespace Collie.Compatibility.Test
 {
     public class CompatibilityTest
     {
@@ -16,11 +16,14 @@ namespace Collie.Test
         {
             var services = new ServiceCollection();
             services.AddSingleton<IServiceA, DefaultServiceA>();
-            services.AddTenantSingleton<IServiceB, DefaultServiceB>();
-            services.AddScoped<IServiceC, DefaultServiceC>();
+            services.TenantedServiceCollection()
+                .AddSingleton<IServiceB, DefaultServiceB>()
+                .AddScoped<IServiceC, DefaultServiceC>();
 
             int key = 0;
-            var provider = services.BuildCollieProvider(sc => key++, typeof(int));
+            var providerFactory = new MultitenantServiceProviderFactory(sc => key++, typeof(int));
+            var builder = providerFactory.CreateBuilder(services);
+            var provider = providerFactory.CreateServiceProvider(builder);
             return (services, provider);
         }
 

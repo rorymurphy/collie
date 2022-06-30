@@ -13,7 +13,7 @@ namespace Collie
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceProvider BuildCollieProvider(this IServiceCollection services, Func<IServiceProvider, object> keySelctor, Type keyType)
+        public static IServiceProvider BuildCollieProvider(this IServiceCollection services, Func<IServiceProvider, object> keySelctor, Type keyType, ServiceContainerOptions options = new ServiceContainerOptions())
         {
             var catalog = new ServiceCatalog(services.Select(svc =>
             {
@@ -27,7 +27,7 @@ namespace Collie
 
             Func<IServiceContainer, object> collieKeySelector = container => keySelctor((IServiceProvider)container);
 
-            return (IServiceProvider)ServiceContainerFactory.Create(catalog, collieKeySelector, keyType);
+            return (IServiceProvider)ServiceContainerFactory.Create(catalog, collieKeySelector, keyType, options);
         }
 
         private static ServiceLifetime GetServiceLifetime(ServiceDescriptor descriptor)

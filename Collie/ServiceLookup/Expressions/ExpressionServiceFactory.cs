@@ -1,5 +1,6 @@
 ﻿using Collie.Abstractions;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -20,6 +21,8 @@ namespace Collie.ServiceLookup.Expressions
         private static readonly MethodInfo AppendMethodInfo = typeof(Enumerable).GetMethod(nameof(Enumerable.Append));
         private static readonly MethodInfo ToArrayMethodInfo = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray));
 
+        private static readonly ConcurrentDictionary<ConstructorInfo, Func<IServiceContainerExtended, Type[], object>> constructorFunctions = new ConcurrentDictionary<ConstructorInfo, Func<IServiceContainerExtended, Type[], object>>();
+
         public Func<IServiceContainerExtended, Type[], object> CreateFactory(Type implementationType)
         {
             Func<IServiceContainerExtended, Type[], object> result = null;
@@ -28,25 +31,82 @@ namespace Collie.ServiceLookup.Expressions
                 result = CreateEnumerableInstance(implementationType);
             } else
             {
-                result = CreateInstanceFromConstructor(implementationType);
+                result = CreateInstanceFromUnknownConstructor(implementationType);
             }
 
             return result;
         }
 
-        Func<IServiceContainerExtended, Type[], object> CreateInstanceFromConstructor(Type implementationType)
+        Func<IServiceContainerExtended, Type[], object> CreateInstanceFromUnknownConstructor(Type implementationType)
         {
             var candidateConstructors = implementationType.GetConstructors().Where(c => c.IsPublic).ToArray();
-            if(candidateConstructors.Length == 0)
+
+            if(candidateConstructors.Length == 0) {
+                throw new ArgumentException(String.Format("Could not find a public constructor for dependency injection for type {0}.", implementationType.FullName));
+            } else if(candidateConstructors.Length > 1)
             {
-                throw new ArgumentException("Could not find a public constructor for dependency injection.");
+                return CreateInstanceFromBestMatchConstructor(candidateConstructors);
+            } else
+            {
+                return CreateInstanceFromConstructor(candidateConstructors[0]);
             }
-            if(candidateConstructors.Length > 1)
+        }
+
+        Func<IServiceContainerExtended, Type[], object> CreateInstanceFromBestMatchConstructor(ConstructorInfo[] candidateConstructors)
+        {
+            return (IServiceContainerExtended services, Type[] callChain) =>
             {
-                throw new ArgumentException("Multiple public constructors are not currently supported for dependency injection.");
+                var selectedConstructor = GetPreferredConstructor(services, callChain, candidateConstructors);
+                if(selectedConstructor == null)
+                {
+                    throw new ArgumentException(String.Format("Could not find a public constructor for dependency injection for type {0}.", candidateConstructors[0].DeclaringType.FullName));
+                }
+                return constructorFunctions.GetOrAdd(selectedConstructor, (ci) => CreateInstanceFromConstructor(selectedConstructor))(services, callChain);
+            };
+        }
+
+        ConstructorInfo GetPreferredConstructor(IServiceContainerExtended services, Type[] callChain, ConstructorInfo[] candidateConstructors)
+        {
+            if(candidateConstructors == null || candidateConstructors.Length == 0) { throw new ArgumentException("Candidate constructors must be non-null and non-empty"); }
+            //Sort by ascending number of parameters
+            Array.Sort(candidateConstructors, (a, b) => a.GetParameters().Length - b.GetParameters().Length);
+
+            ConstructorInfo selected = null;
+            var resolvableTypes = new HashSet<Type>();
+            for (int i = 0; i < candidateConstructors.Length; i++)
+            {
+                bool resolvable = true;
+                var parameters = candidateConstructors[i].GetParameters();
+                
+                //In the event of same length, we already know the current one is fully resolvable, and we'll
+                //arbitrarily say the tie goes to the first encountered, so there's no reason to evaluate
+                //others with the same number of parameters.
+                if(selected != null && parameters.Length <= selected.GetParameters().Length) { continue; }
+
+                foreach(var p in parameters)
+                {
+                    if(!resolvableTypes.Contains(p.ParameterType) && !services.IsResolvable(p.ParameterType, callChain)) {
+                        resolvable = false;
+                        break;
+                    } else
+                    {
+                        resolvableTypes.Add(p.ParameterType);
+                    }
+                }
+
+                if (resolvable && (selected == null || selected.GetParameters().Length < candidateConstructors[i].GetParameters().Length))
+                {
+                    selected = candidateConstructors[i];
+                }
             }
 
-            var paramTypes = candidateConstructors[0].GetParameters();
+            return selected;
+        }
+
+        Func<IServiceContainerExtended, Type[], object> CreateInstanceFromConstructor(ConstructorInfo constructor)
+        {
+            Type implementationType = constructor.DeclaringType;
+            var paramTypes = constructor.GetParameters();
 
             var paramList = new List<ParameterExpression>(paramTypes.Length);
             var initList = new List<Expression>(paramTypes.Length * 2);
@@ -77,8 +137,8 @@ namespace Collie.ServiceLookup.Expressions
 
             Expression newExpr = null;
             if(paramTypes.Length > 0)
-            { newExpr = Expression.New(candidateConstructors[0], paramList.ToArray()); }
-            else { newExpr = Expression.New(candidateConstructors[0]); }
+            { newExpr = Expression.New(constructor, paramList.ToArray()); }
+            else { newExpr = Expression.New(constructor); }
 
             var blockList = new List<Expression>(initList.Count + 2);
             blockList.Add(updateCallChainExpr);
