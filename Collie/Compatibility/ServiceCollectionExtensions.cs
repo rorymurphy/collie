@@ -17,11 +17,13 @@ namespace Collie
         {
             var catalog = new ServiceCatalog(services.Select(svc =>
             {
+                var tfSvc = svc as TenantFilteringServiceDescriptor;
                 return new ServiceDefinition(svc.ServiceType, GetServiceLifetime(svc))
                 {
                     ImplementationType = svc.ImplementationType,
                     ServiceFactory = (svc.ImplementationFactory != null) ? sc => svc.ImplementationFactory((IServiceProvider)sc) : null,
-                    ServiceInstance = svc.ImplementationInstance
+                    ServiceInstance = svc.ImplementationInstance,
+                    TenantFilter = (tfSvc != null) ? tfSvc.TenantFilter : null
                 };
             }));
 

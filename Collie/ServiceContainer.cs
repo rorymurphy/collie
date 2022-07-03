@@ -115,11 +115,31 @@ namespace Collie
             serviceScopeFactory = IsRootContainer ? new ServiceScopeFactory(scopeBuilder) : (MSFTDI.IServiceScopeFactory)rootContainer.GetService(IServiceScopeFactoryType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
+
+            PopulateServiceDefinitions(services, true);
+
+            if (IsScopeContainer)
+            {
+                tenantKey = tenantKeySelector(this);
+                tenantContainer = tenantManager.CaptureTenant(tenantKey);
+            }
+
+            if (tenantKey != null) {
+                PopulateServiceDefinitions(services, false);
+            }
+        }
+
+        protected void PopulateServiceDefinitions(IEnumerable<ServiceDefinition> serviceDefinitions, bool excludeTenantFilteredTypes = false)
+        {
             if (ContextualOverrides)
             {
                 foreach (var svc in services)
                 {
-                    if (!serviceDefinitionsByType.ContainsKey(svc.ServiceType) || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                    if (excludeTenantFilteredTypes && svc.TenantFilter != null)
+                    {
+                        serviceDefinitionsByType.Remove(svc.ServiceType);
+                    } else if ((!serviceDefinitionsByType.ContainsKey(svc.ServiceType) || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                        && (tenantKey == null || svc.TenantFilter == null || svc.TenantFilter(tenantKey)))
                     {
                         serviceDefinitionsByType[svc.ServiceType] = svc;
                     }
@@ -129,14 +149,15 @@ namespace Collie
             {
                 foreach (var svc in services)
                 {
-                    serviceDefinitionsByType[svc.ServiceType] = svc;
+                    if (excludeTenantFilteredTypes && svc.TenantFilter != null)
+                    {
+                        serviceDefinitionsByType.Remove(svc.ServiceType);
+                    }
+                    else if (tenantKey == null || svc.TenantFilter == null || svc.TenantFilter(tenantKey))
+                    {
+                        serviceDefinitionsByType[svc.ServiceType] = svc;
+                    }
                 }
-            }
-
-            if (IsScopeContainer)
-            {
-                tenantKey = tenantKeySelector(this);
-                tenantContainer = tenantManager.CaptureTenant(tenantKey);
             }
         }
 
@@ -216,7 +237,8 @@ namespace Collie
                     throw new UnresolvableDependencyException(typeof(IEnumerable<>).MakeGenericType(serviceType), sd.ServiceType);
                 }
                 return (lifetimeResolution != ServiceLifetimeResolution.Unresolvable)
-                     && (sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType));
+                     && (sd.ServiceType == serviceType || (genericType != null && sd.ServiceType == genericType))
+                     && IsApplicableInContext(this.containerType, sd.TenantFilter, this.tenantKey);
             }).Select(sd => new ServiceIdentifier(serviceType, sd));
         }
 
@@ -395,6 +417,12 @@ namespace Collie
 
             var lifetimeResolution = GetLiftetimeResolution(definition.Lifetime);
             return lifetimeResolution != ServiceLifetimeResolution.Unresolvable;
+        }
+
+        public static bool IsApplicableInContext(ServiceLifetime containerLifetime, Func<object, bool> contextFilter, object tenantKey)
+        {
+            if(tenantKey == null || contextFilter == null) { return true; }
+            else { return contextFilter(tenantKey); }
         }
     }
 }
