@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Collie.Compatibility.Abstractions
+namespace Collie.Compatibility
 {
     public static class ServiceCollectionExtensions
     {

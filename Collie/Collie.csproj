@@ -7,7 +7,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Version>1.0.11</Version>
+    <Version>1.1.0</Version>
     <PackageProjectUrl>https://github.com/rorymurphy/collie</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rorymurphy/collie</RepositoryUrl>
     <RepositoryType>Git</RepositoryType>

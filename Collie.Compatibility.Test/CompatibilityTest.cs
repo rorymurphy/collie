@@ -66,5 +66,53 @@ namespace Collie.Compatibility.Test
             Assert.NotEqual(scope1SvcB, scope2SvcB);
             Assert.NotEqual(scope1SvcC, scope2SvcC);
         }
+
+        [Fact]
+        public void TestTenantSingletonTenantFilters()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IServiceA, DefaultServiceA>();
+            services.AddTenantSingleton<IServiceA, DefaultServiceC>(k => (int)k == 1);
+            services.AddTenantSingleton<IServiceA>(sp => new DefaultServiceC(), k => (int)k == 2);
+            services.TenantedServiceCollection()
+                .AddSingleton<IServiceB, DefaultServiceB>()
+                .AddScoped<IServiceC, DefaultServiceC>();
+
+            int key = 0;
+            var providerFactory = new MultitenantServiceProviderFactory(sc => key++, typeof(int));
+            var builder = providerFactory.CreateBuilder(services);
+            var provider = providerFactory.CreateServiceProvider(builder);
+
+            var scope0 = provider.CreateScope();
+            var scope1 = provider.CreateScope();
+            var scope2 = provider.CreateScope();
+            Assert.IsType<DefaultServiceA>(scope0.ServiceProvider.GetRequiredService<IServiceA>());
+            Assert.IsType<DefaultServiceC>(scope1.ServiceProvider.GetRequiredService<IServiceA>());
+            Assert.IsType<DefaultServiceC>(scope2.ServiceProvider.GetRequiredService<IServiceA>());
+        }
+
+        [Fact]
+        public void TestScopedTenantFilters()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IServiceA, DefaultServiceA>();
+            services.AddScoped<IServiceA, DefaultServiceC>(k => (int)k == 1);
+            services.AddScoped<IServiceA>(sp => new DefaultServiceC(), k => (int)k == 2);
+            services.TenantedServiceCollection()
+                .AddSingleton<IServiceB, DefaultServiceB>()
+                .AddScoped<IServiceC, DefaultServiceC>();
+
+            int key = 0;
+            var providerFactory = new MultitenantServiceProviderFactory(sc => key++, typeof(int));
+            var builder = providerFactory.CreateBuilder(services);
+            var provider = providerFactory.CreateServiceProvider(builder);
+
+            var scope0 = provider.CreateScope();
+            var scope1 = provider.CreateScope();
+            var scope2 = provider.CreateScope();
+            Assert.IsType<DefaultServiceA>(scope0.ServiceProvider.GetRequiredService<IServiceA>());
+            Assert.IsType<DefaultServiceC>(scope1.ServiceProvider.GetRequiredService<IServiceA>());
+            Assert.IsType<DefaultServiceC>(scope2.ServiceProvider.GetRequiredService<IServiceA>());
+        }
     }
 }
