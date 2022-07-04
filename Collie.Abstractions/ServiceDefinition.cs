@@ -37,6 +37,8 @@ namespace Collie.Abstractions
 
         public Type ServiceType { get; init; }
 
+        public Func<object, bool> TenantFilter { get; init; }
+
         public Type ImplementationType { get; init; }
 
         public ServiceLifetime Lifetime { get; init; }

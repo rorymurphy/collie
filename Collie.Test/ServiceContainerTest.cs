@@ -176,22 +176,41 @@ namespace Collie.Test
             Assert.IsType<DefaultServiceC>(scope1SvcA);
         }
 
+        [Fact]
         public void TestContextualOverridesDisabled()
         {
             var catalog = new ServiceCatalog();
             catalog.AddSingleton<IServiceA, DefaultServiceA>();
             catalog.AddScoped<IServiceA, DefaultServiceC>();
 
-            IServiceContainer container = new ServiceContainer(catalog, true);
+            IServiceContainer container = new ServiceContainer(catalog, false);
 
-            Assert.Throws<Exception>(() =>
-            {
-                var rootSvcA = container.GetService<IServiceA>();
-            });
+            Assert.Null(container.GetService<IServiceA>());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
 
+            var scope1SvcA = scope1.GetService<IServiceA>();
+            Assert.IsType<DefaultServiceC>(scope1SvcA);
+        }
+
+        [Fact]
+        public void TestTenantFilter()
+        {
+            var catalog = new ServiceCatalog();
+            catalog.AddTenantSingleton<IServiceA, DefaultServiceA>(t => (int)t == 0);
+            catalog.AddScoped<IServiceA, DefaultServiceC>(t => (int)t == 1);
+
+            int tenantKey = 0;
+            IServiceContainer container = new ServiceContainer(catalog, sp => tenantKey++, typeof(int), true);
+
+            var scopeBuilder = container.GetService<IScopeBuilder>();
+            var scope0 = scopeBuilder.Create(null);
+
+            var scope0SvcA = scope0.GetService<IServiceA>();
+            Assert.IsType<DefaultServiceA>(scope0SvcA);
+
+            var scope1 = scopeBuilder.Create(null);
             var scope1SvcA = scope1.GetService<IServiceA>();
             Assert.IsType<DefaultServiceC>(scope1SvcA);
         }

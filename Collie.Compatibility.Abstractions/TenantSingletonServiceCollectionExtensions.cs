@@ -10,18 +10,18 @@ namespace Collie
 {
     public static class TenantSingletonServiceCollectionExtensions
     {
-        public static IServiceCollection AddTenantSingleton<TService, TImplementation>(this IServiceCollection services)
+        public static IServiceCollection AddTenantSingleton<TService, TImplementation>(this IServiceCollection services, Func<object, bool> tenantFilter = null)
         {
-            services.Add(new TenantSingletonServiceDescriptor(typeof(TService), typeof(TImplementation)));
+            services.Add(new TenantSingletonServiceDescriptor(typeof(TService), typeof(TImplementation)) { TenantFilter = tenantFilter });
             return services;
         }
 
-        public static IServiceCollection AddTenantSingleton<TService>(this IServiceCollection services, Func<IServiceProvider, TService> factory)
+        public static IServiceCollection AddTenantSingleton<TService>(this IServiceCollection services, Func<IServiceProvider, TService> factory, Func<object, bool> tenantFilter = null)
         {
             var serviceType = typeof(TService);
             Func<IServiceProvider, object> objFactory = provider => (object)factory(provider);
 
-            services.Add(new TenantSingletonServiceDescriptor(typeof(TService), objFactory));
+            services.Add(new TenantSingletonServiceDescriptor(typeof(TService), objFactory) { TenantFilter = tenantFilter });
             return services;
         }
 
