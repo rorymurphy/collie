@@ -39,7 +39,7 @@ namespace Collie.ServiceLookup
             this.maxTenantCount = maxTenantCount;
         }
 
-        public ServiceContainer CaptureTenant(object key)
+        public ServiceContainer CaptureTenant(object key, ServiceContainerOptions serviceContainerOptions)
         {
             Tuple<int, ServiceContainer> entry = null;
             var lockObj = new object();
@@ -61,7 +61,7 @@ namespace Collie.ServiceLookup
                     throw new TenantLimitExceededException(key);
                 } else if (!success)
                 {
-                    var tenantContainer = new ServiceContainer(services, rootContainer, keySelector, keyType, key);
+                    var tenantContainer = new ServiceContainer(services, rootContainer, keySelector, keyType, key, serviceContainerOptions);
                     activeServiceContainers.Add(key, new Tuple<int, ServiceContainer>(1, tenantContainer));
                 } else
                 {

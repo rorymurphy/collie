@@ -1,19 +1,21 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Authors>Rory Murphy</Authors>
     <Company>Rory Murphy</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Version>1.1.0</Version>
+    <Version>2.0.0</Version>
     <PackageProjectUrl>https://github.com/rorymurphy/collie</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rorymurphy/collie</RepositoryUrl>
     <RepositoryType>Git</RepositoryType>
     <Copyright>Rory Murphy</Copyright>
     <PackageTags>"dependency injection", "inversion of control", "container"</PackageTags>
     <Description>A multi-tenant dependency injection/inversion of control container</Description>
+	<IncludeSymbols>true</IncludeSymbols>
+	<SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>

@@ -66,32 +66,34 @@ namespace Collie
 
         private static readonly object SingleTenantKey = new object();
 
+        protected internal ServiceContainerOptions serviceContainerOptions;
+
         public int TenantCacheSize { get; init; }
 
         public uint MaxTenantSize { get; init; }
 
         public bool IgnoreUnresolvableEnumerables { get; init; } = true;
 
-        public bool ContextualOverrides { get; private set; }
+        public bool AllowContextualOverrides { get; private set; }
 
-        public ServiceContainer(IServiceCatalog services, bool contextualOverrides = false) : this(services, (container) => SingleTenantKey, typeof(object), contextualOverrides) { }
+        public ServiceContainer(IServiceCatalog services, ServiceContainerOptions options) : this(services, (container) => SingleTenantKey, typeof(object), options) { }
 
         //Root container initialization
-        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
-            : this(ServiceLifetime.Singleton, services, null, keySelector, keyType, null, contextualOverrides)
+        public ServiceContainer(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, ServiceContainerOptions options)
+            : this(ServiceLifetime.Singleton, services, null, keySelector, keyType, null, options)
         { }
 
         //Tenant singleton container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
-            : this(ServiceLifetime.TenantSingleton, services, rootContainer, keySelector, keyType, key, contextualOverrides)
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, ServiceContainerOptions options)
+            : this(ServiceLifetime.TenantSingleton, services, rootContainer, keySelector, keyType, key, options)
         { }
 
         //Scoped container initialization
-        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, bool contextualOverrides = false)
-            : this(ServiceLifetime.Scoped, services, rootContainer, keySelector, keyType, null, contextualOverrides)
+        internal ServiceContainer(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, ServiceContainerOptions options)
+            : this(ServiceLifetime.Scoped, services, rootContainer, keySelector, keyType, null, options)
         { }
 
-        private ServiceContainer(ServiceLifetime containerType, IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, bool contextualOverrides = false)
+        private ServiceContainer(ServiceLifetime containerType, IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, object key, ServiceContainerOptions options)
         {
             this.services = services;
             this.tenantKeySelector = keySelector;
@@ -100,7 +102,12 @@ namespace Collie
 
             this.rootContainer = rootContainer;
             this.containerType = containerType;
-            this.ContextualOverrides = contextualOverrides;
+
+            this.serviceContainerOptions = options;
+            this.AllowContextualOverrides = options.AllowContextualOverrides;
+            this.TenantCacheSize = options.TenantCacheSize;
+            this.MaxTenantSize = options.MaxTenantSize;
+            this.IgnoreUnresolvableEnumerables = options.IgnoreUnresolvableEnumerables;
 
             this.Initialize();
         }
@@ -110,8 +117,8 @@ namespace Collie
         {
             serviceFactoryGenerator = IsRootContainer ? new ExpressionServiceFactory() : (IServiceFactoryGenerator)rootContainer.GetService(IServiceFactoryGeneratorType);
             serviceCreatorCache = IsRootContainer ? new ServiceCreatorCache() : (ServiceCreatorCache)rootContainer.GetService(ServiceCreatorCacheType);
-            scopeBuilder = IsRootContainer ? new DefaultScopeBuilder(services, this, tenantKeySelector, tenantKeyType) : (IScopeBuilder)rootContainer.GetService(IScopeBuilderType);
-            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, TenantCacheSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
+            scopeBuilder = IsRootContainer ? new DefaultScopeBuilder(services, this, tenantKeySelector, tenantKeyType, serviceContainerOptions) : (IScopeBuilder)rootContainer.GetService(IScopeBuilderType);
+            tenantManager = IsRootContainer ? new DefaultTenantManager(services, this, tenantKeySelector, tenantKeyType, TenantCacheSize, MaxTenantSize) : (ITenantManager)rootContainer.GetService(ITenantManagerType);
             serviceScopeFactory = IsRootContainer ? new ServiceScopeFactory(scopeBuilder) : (MSFTDI.IServiceScopeFactory)rootContainer.GetService(IServiceScopeFactoryType);
 
             //Handles the case of multiple registrations, where the last one takes precedence, but for IEnumerable<T> need to keep all registrations.
@@ -121,7 +128,7 @@ namespace Collie
             if (IsScopeContainer)
             {
                 tenantKey = tenantKeySelector(this);
-                tenantContainer = tenantManager.CaptureTenant(tenantKey);
+                tenantContainer = tenantManager.CaptureTenant(tenantKey, serviceContainerOptions);
             }
 
             if (tenantKey != null) {
@@ -131,14 +138,16 @@ namespace Collie
 
         protected void PopulateServiceDefinitions(IEnumerable<ServiceDefinition> serviceDefinitions, bool excludeTenantFilteredTypes = false)
         {
-            if (ContextualOverrides)
+            if (AllowContextualOverrides)
             {
                 foreach (var svc in services)
                 {
                     if (excludeTenantFilteredTypes && svc.TenantFilter != null)
                     {
                         serviceDefinitionsByType.Remove(svc.ServiceType);
-                    } else if ((!serviceDefinitionsByType.ContainsKey(svc.ServiceType) || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable)
+                    } else if ((!serviceDefinitionsByType.ContainsKey(svc.ServiceType)
+                        || GetLiftetimeResolution(svc.Lifetime) != ServiceLifetimeResolution.Unresolvable
+                        || GetLiftetimeResolution(serviceDefinitionsByType[svc.ServiceType].Lifetime) == ServiceLifetimeResolution.Unresolvable)
                         && (tenantKey == null || svc.TenantFilter == null || svc.TenantFilter(tenantKey)))
                     {
                         serviceDefinitionsByType[svc.ServiceType] = svc;
@@ -177,6 +186,7 @@ namespace Collie
             else if (serviceType == ServiceCreatorCacheType) { return serviceCreatorCache; }
             else if (serviceType == ITenantManagerType) { return tenantManager; }
             else if (serviceType.IsInterface && serviceType.IsGenericTypeDefinition) { throw new ArgumentException("When requeing a generic typed service, request must refer to a fully specified type."); }
+            else if (serviceType == tenantKeyType && tenantKey != null) { return tenantKey; }
 
             if (callChain.Contains(serviceType))
             {
