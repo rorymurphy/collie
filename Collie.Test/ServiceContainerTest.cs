@@ -21,7 +21,7 @@ namespace Collie.Test
             catalog.AddScoped<IServiceB, DefaultServiceB>();
             catalog.AddTransient<IServiceC, DefaultServiceC>();
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -47,7 +47,7 @@ namespace Collie.Test
             catalog.AddScoped<IServiceB, DefaultServiceB>();
             catalog.AddTransient<int>(123);
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -71,7 +71,7 @@ namespace Collie.Test
             catalog.AddScoped<IServiceB, DefaultServiceB>();
             catalog.AddTransient<IServiceA, DefaultServiceC>();
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -93,7 +93,7 @@ namespace Collie.Test
             catalog.AddTransient<IServiceA, DefaultServiceC>();
             catalog.Add(new ServiceDefinition(typeof(IServiceG<>), ServiceLifetime.Transient, typeof(DefaultServiceD<>)));
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -113,7 +113,7 @@ namespace Collie.Test
             catalog.Add(new ServiceDefinition(typeof(IServiceG<>), ServiceLifetime.Scoped, typeof(DefaultServiceD<>)));
             catalog.AddScoped<IServiceG<int>, AlternateServiceD<int>>();
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -133,7 +133,7 @@ namespace Collie.Test
 
             catalog.AddScoped<CompositeServiceE, CompositeServiceE>();
 
-            IServiceContainer container = new ServiceContainer(catalog);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(null);
@@ -158,13 +158,46 @@ namespace Collie.Test
         }
 
         [Fact]
+        public void TestTenantSingletonDependencyOnTenantKey()
+        {
+            int tenantId = 0;
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddTenantSingleton<IServiceB>(sc =>
+            {
+                var id = sc.GetService<int>();
+                return new DefaultServiceB();
+            });
+
+            catalog.AddScoped<int>(container => tenantId++);
+
+            IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<int>(), typeof(int), new ServiceContainerOptions());
+
+            var scopeBuilder = rootContainer.GetService<IScopeBuilder>();
+            var scope1 = scopeBuilder.Create(new ServiceCatalog());
+            var scope1SvcB = scope1.GetService<IServiceB>();
+
+            Assert.NotNull(scope1SvcB);
+            Assert.Equal(scope1SvcB, scope1.GetService<IServiceB>());
+            Assert.Equal(0, scope1.GetService<int>());
+
+            var scope2 = scopeBuilder.Create(new ServiceCatalog());
+            var scope2SvcB = scope2.GetService<IServiceB>();
+
+            Assert.NotNull(scope2SvcB);
+            Assert.Equal(scope2SvcB, scope2.GetService<IServiceB>());
+            Assert.NotEqual(scope1SvcB, scope2SvcB);
+            Assert.Equal(1, scope2.GetService<int>());
+        }
+
+        [Fact]
         public void TestContextualOverrides()
         {
             var catalog = new ServiceCatalog();
             catalog.AddSingleton<IServiceA, DefaultServiceA>();
             catalog.AddScoped<IServiceA, DefaultServiceC>();
 
-            IServiceContainer container = new ServiceContainer(catalog, true);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions(AllowContextualOverrides: true));
 
             var rootSvcA = container.GetService<IServiceA>();
             Assert.IsType<DefaultServiceA>(rootSvcA);
@@ -183,7 +216,7 @@ namespace Collie.Test
             catalog.AddSingleton<IServiceA, DefaultServiceA>();
             catalog.AddScoped<IServiceA, DefaultServiceC>();
 
-            IServiceContainer container = new ServiceContainer(catalog, false);
+            IServiceContainer container = new ServiceContainer(catalog, new ServiceContainerOptions());
 
             Assert.Null(container.GetService<IServiceA>());
 
@@ -202,7 +235,7 @@ namespace Collie.Test
             catalog.AddScoped<IServiceA, DefaultServiceC>(t => (int)t == 1);
 
             int tenantKey = 0;
-            IServiceContainer container = new ServiceContainer(catalog, sp => tenantKey++, typeof(int), true);
+            IServiceContainer container = new ServiceContainer(catalog, sp => tenantKey++, typeof(int), new ServiceContainerOptions());
 
             var scopeBuilder = container.GetService<IScopeBuilder>();
             var scope0 = scopeBuilder.Create(null);
@@ -224,7 +257,7 @@ namespace Collie.Test
             catalog.AddTenantSingleton<IServiceB, DefaultServiceB>();
             catalog.AddScoped<Tuple<int>>(container => new Tuple<int>(tenantId++));
 
-            IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>));
+            IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>), new ServiceContainerOptions());
 
             var scopeBuilder = rootContainer.GetService<IScopeBuilder>();
             var scope1 = scopeBuilder.Create(new ServiceCatalog());
@@ -254,7 +287,7 @@ namespace Collie.Test
             catalog.AddScoped<IServiceA, DefaultServiceC>();
             catalog.AddScoped<Tuple<int>>(container => new Tuple<int>(tenantId++));
 
-            IServiceContainer container = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>));
+            IServiceContainer container = new ServiceContainer(catalog, container => container.GetService<Tuple<int>>(), typeof(Tuple<int>), new ServiceContainerOptions(AllowContextualOverrides: true, IgnoreUnresolvableEnumerables: true));
 
             var globalSvcA = container.GetService<IEnumerable<IServiceA>>();
             Assert.NotNull(globalSvcA);

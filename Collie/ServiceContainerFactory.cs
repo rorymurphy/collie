@@ -11,7 +11,7 @@ namespace Collie
     {
         public static IServiceContainer Create(IServiceCatalog services, Func<IServiceContainer, object> keySelector, Type keyType, ServiceContainerOptions options)
         {
-            return new ServiceContainer(services, keySelector, keyType, options.ContextualOverrides) { TenantCacheSize = options.TenantCacheSize, IgnoreUnresolvableEnumerables = options.IgnoreUnresolvableEnumerables };
+            return new ServiceContainer(services, keySelector, keyType, options);
         }
     }
 }

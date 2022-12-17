@@ -18,12 +18,15 @@ namespace Collie.ServiceLookup
 
         protected Type keyType;
 
-        public DefaultScopeBuilder(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType)
+        protected ServiceContainerOptions serviceContainerOptions;
+
+        public DefaultScopeBuilder(IServiceCatalog services, ServiceContainer rootContainer, Func<IServiceContainer, object> keySelector, Type keyType, ServiceContainerOptions serviceContainerOptions)
         {
             this.services = services;
             this.rootContainer = rootContainer;
             this.keySelector = keySelector;
             this.keyType = keyType;
+            this.serviceContainerOptions = serviceContainerOptions;
         }
 
         public IServiceContainer Create(IServiceCatalog scopedServices = null)
@@ -34,7 +37,7 @@ namespace Collie.ServiceLookup
             {
                 effectiveServices.AddRange(scopedServices);
             }
-            return new ServiceContainer(effectiveServices, rootContainer, keySelector, keyType);
+            return new ServiceContainer(effectiveServices, rootContainer, keySelector, keyType, serviceContainerOptions);
         }
     }
 }

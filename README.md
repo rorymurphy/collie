@@ -3,7 +3,7 @@
 
 ## Purpose
 
-Collie is a multi-tenant inversion of control container for .NET 5 & above. Multi-tenancy is supported by introducing the concept of a tenant key, that defines the
+Collie is a multi-tenant inversion of control container for .NET (as of v1.2, .NET 6.0 & above are supported). Multi-tenancy is supported by introducing the concept of a tenant key, that defines the
 shared context which a given scope should use to resolve the TenantSingleton service lifetime (one shared instance per tenant).
 
 ## Usage
