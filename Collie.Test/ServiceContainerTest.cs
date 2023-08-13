@@ -191,6 +191,26 @@ namespace Collie.Test
         }
 
         [Fact]
+        public void TestTenantSingletonWithBadTenantKeyLifetime()
+        {
+            int tenantId = 0;
+            var catalog = new ServiceCatalog();
+            catalog.AddSingleton<IServiceA, DefaultServiceA>();
+            catalog.AddTenantSingleton<IServiceB>(sc =>
+            {
+                var id = sc.GetService<int>();
+                return new DefaultServiceB();
+            });
+
+            catalog.AddSingleton<int>(container => tenantId++);
+
+            IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<int>(), typeof(int), new ServiceContainerOptions());
+
+            var scopeBuilder = rootContainer.GetService<IScopeBuilder>();
+            Assert.Throws<TenantKeyException>(() => scopeBuilder.Create());
+        }
+
+        [Fact]
         public void TestContextualOverrides()
         {
             var catalog = new ServiceCatalog();

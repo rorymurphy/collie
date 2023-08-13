@@ -9,7 +9,7 @@ namespace Collie.ServiceLookup
     public class CircularDependencyException : Exception
     {
         private const string MESSAGE_FORMAT = "Unable to construct type {0} due to a circular dependency via type {1}.";
-        public CircularDependencyException(Type[] callChain, Exception innerException = null) : base(String.Format(MESSAGE_FORMAT, callChain.First()?.FullName ?? "Unknown", callChain.Last()?.FullName ?? "Unknown"), innerException)
+        public CircularDependencyException(Type[] callChain, Exception innerException = null) : base(string.Format(MESSAGE_FORMAT, callChain.First()?.FullName ?? "Unknown", callChain.Last()?.FullName ?? "Unknown"), innerException)
         {
             this.CallChain = callChain;
         }
