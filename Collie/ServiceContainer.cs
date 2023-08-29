@@ -245,7 +245,7 @@ namespace Collie
                 return null;
             }
 
-            if (resolvingKey && definition.Lifetime != ServiceLifetime.Scoped)
+            if (resolvingKey && definition.Lifetime == ServiceLifetime.TenantSingleton)
             {
                 throw new TenantKeyException(definition);
             }

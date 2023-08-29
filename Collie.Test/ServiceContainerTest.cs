@@ -202,7 +202,7 @@ namespace Collie.Test
                 return new DefaultServiceB();
             });
 
-            catalog.AddSingleton<int>(container => tenantId++);
+            catalog.AddTenantSingleton<int>(container => tenantId++);
 
             IServiceContainer rootContainer = new ServiceContainer(catalog, container => container.GetService<int>(), typeof(int), new ServiceContainerOptions());
 
