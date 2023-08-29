@@ -1,4 +1,5 @@
-﻿using Collie.Test.SampleServices;
+﻿using Collie.Abstractions;
+using Collie.Test.SampleServices;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
@@ -113,6 +114,37 @@ namespace Collie.Compatibility.Test
             Assert.IsType<DefaultServiceA>(scope0.ServiceProvider.GetRequiredService<IServiceA>());
             Assert.IsType<DefaultServiceC>(scope1.ServiceProvider.GetRequiredService<IServiceA>());
             Assert.IsType<DefaultServiceC>(scope2.ServiceProvider.GetRequiredService<IServiceA>());
+        }
+
+        [Fact]
+        public void TestDynamicRegistation()
+        {
+            var services = new ServiceCollection();
+            services.AddScoped<IServiceA, DefaultServiceC>()
+                .AddSingleton<IServiceB, DefaultServiceB>()
+                .AddScoped<IServiceC, DefaultServiceC>()
+                .AddSingleton<IDynamicServiceConfigurer>(new DynamicConfigurer(services => services.AddScoped<CompositeServiceD, CompositeServiceD>()));
+
+            int key = 0;
+            var providerFactory = new MultitenantServiceProviderFactory(sc => key++, typeof(int));
+            var builder = providerFactory.CreateBuilder(services);
+            var provider = providerFactory.CreateServiceProvider(builder);
+            var scopeProvider = provider.CreateScope().ServiceProvider;
+            Assert.NotNull(scopeProvider.GetService<CompositeServiceD>());
+        }
+
+        class DynamicConfigurer : IDynamicServiceConfigurer
+        {
+            Action<IServiceCollection> configureAction;
+            public DynamicConfigurer(Action<IServiceCollection> configureAction)
+            {
+                this.configureAction = configureAction;
+            }
+
+            public void ConfigureServices(IServiceCollection services)
+            {
+                configureAction(services);
+            }
         }
     }
 }

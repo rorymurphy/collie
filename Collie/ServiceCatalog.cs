@@ -11,6 +11,8 @@ namespace Collie
     {
         public ServiceCatalog() { }
 
+        public ServiceCatalog(int capacity) : base(capacity) { }
+
         public ServiceCatalog(IEnumerable<ServiceDefinition> services) : base(services) { }
     }
 }
