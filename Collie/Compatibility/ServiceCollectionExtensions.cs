@@ -1,5 +1,6 @@
 ﻿using Collie.Abstractions;
 using Collie.Compatibility;
+using Collie.Compatibility.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,19 +14,34 @@ namespace Collie
 {
     public static class ServiceCollectionExtensions
     {
+        private static readonly Type IDynamicServiceConfigurerType = typeof(IDynamicServiceConfigurer);
         public static IServiceProvider BuildCollieProvider(this IServiceCollection services, Func<IServiceProvider, object> keySelctor, Type keyType, ServiceContainerOptions options = new ServiceContainerOptions())
         {
-            var catalog = new ServiceCatalog(services.Select(svc =>
+            var catalog = new ServiceCatalog(services.Count);
+            foreach (var svc in services)
             {
                 var tfSvc = svc as TenantFilteringServiceDescriptor;
-                return new ServiceDefinition(svc.ServiceType, GetServiceLifetime(svc))
+                var defintion = new ServiceDefinition(svc.ServiceType, GetServiceLifetime(svc))
                 {
                     ImplementationType = svc.ImplementationType,
                     ServiceFactory = (svc.ImplementationFactory != null) ? sc => svc.ImplementationFactory((IServiceProvider)sc) : null,
                     ServiceInstance = svc.ImplementationInstance,
                     TenantFilter = (tfSvc != null) ? tfSvc.TenantFilter : null
                 };
-            }));
+
+                catalog.Add(defintion);
+
+                if(svc.ServiceType == IDynamicServiceConfigurerType)
+                {
+                    defintion = new ServiceDefinition(typeof(IDynamicServiceRegistrar), GetServiceLifetime(svc))
+                    {
+                        ServiceInstance = typeof(DynamicServiceConfigurerShim),
+                        TenantFilter = (tfSvc != null) ? tfSvc.TenantFilter : null
+                    };
+                    catalog.Add(defintion);
+                }
+            }
+            ConvertToServiceCatalog(services);
 
             Func<IServiceContainer, object> collieKeySelector = container => keySelctor((IServiceProvider)container);
 
@@ -50,6 +66,23 @@ namespace Collie
                         return ServiceLifetime.Scoped;
                     }
             }
+        }
+
+        public static IServiceCatalog ConvertToServiceCatalog(this IServiceCollection services)
+        {
+            var catalog = new ServiceCatalog(services.Select(svc =>
+            {
+                var tfSvc = svc as TenantFilteringServiceDescriptor;
+                return new ServiceDefinition(svc.ServiceType, GetServiceLifetime(svc))
+                {
+                    ImplementationType = svc.ImplementationType,
+                    ServiceFactory = (svc.ImplementationFactory != null) ? sc => svc.ImplementationFactory((IServiceProvider)sc) : null,
+                    ServiceInstance = svc.ImplementationInstance,
+                    TenantFilter = (tfSvc != null) ? tfSvc.TenantFilter : null
+                };
+            }));
+
+            return catalog;
         }
     }
 }
