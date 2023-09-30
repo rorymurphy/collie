@@ -109,8 +109,10 @@ namespace Collie.ServiceLookup.Expressions
             var paramTypes = constructor.GetParameters();
 
             var paramList = new List<ParameterExpression>(paramTypes.Length);
-            var initList = new List<Expression>(paramTypes.Length * 2);
+            var initList = new List<Expression>(paramTypes.Length * 5);
             var nullExpr = Expression.Constant(null);
+
+            var tempObjExpr = Expression.Variable(typeof(object));
 
             var containerExpr = Expression.Parameter(typeof(IServiceContainerExtended));
             var callChainExpr = Expression.Parameter(typeof(Type[]));
@@ -122,16 +124,18 @@ namespace Collie.ServiceLookup.Expressions
             foreach (var p in paramTypes)
             {
                 var paramExpr = Expression.Parameter(p.ParameterType);
+                
+                var tempVarAssignmentExpr = Expression.Assign(tempObjExpr, Expression.Call(containerExpr, ServiceContainerGetServiceInternalMethod, Expression.Constant(p.ParameterType), callChainExpr));
                 var initExpr = Expression.Assign(paramExpr,
-                    Expression.Convert(Expression.Call(containerExpr, ServiceContainerGetServiceInternalMethod, Expression.Constant(p.ParameterType), callChainExpr), p.ParameterType));
-                var nullCheckExpr = Expression.IfThen(Expression.Equal(nullExpr, paramExpr),
-                    Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), Expression.Convert(nullExpr, typeof(Exception)))));
-
+                Expression.Convert(tempObjExpr, p.ParameterType));
 
                 paramList.Add(paramExpr);
+                initList.Add(tempVarAssignmentExpr);
                 initList.Add(initExpr);
+
+                var nullCheckExpr = Expression.IfThen(Expression.Equal(nullExpr, tempObjExpr),
+                    Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), Expression.Convert(nullExpr, typeof(Exception)))));
                 initList.Add(nullCheckExpr);
-                
 
             }
 
@@ -144,7 +148,7 @@ namespace Collie.ServiceLookup.Expressions
             blockList.Add(updateCallChainExpr);
             blockList.AddRange(initList);
             blockList.Add(newExpr);
-            var blockExpr = Expression.Block(paramList, blockList);
+            var blockExpr = Expression.Block(paramList.Append(tempObjExpr), blockList);
             var resultExpr = Expression.Lambda(blockExpr, containerExpr, callChainExpr);
             return (Func<IServiceContainerExtended, Type[], object>)resultExpr.Compile();
         }
