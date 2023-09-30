@@ -124,14 +124,17 @@ namespace Collie.ServiceLookup.Expressions
                 var paramExpr = Expression.Parameter(p.ParameterType);
                 var initExpr = Expression.Assign(paramExpr,
                     Expression.Convert(Expression.Call(containerExpr, ServiceContainerGetServiceInternalMethod, Expression.Constant(p.ParameterType), callChainExpr), p.ParameterType));
-                var nullCheckExpr = Expression.IfThen(Expression.Equal(nullExpr, paramExpr),
-                    Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), Expression.Convert(nullExpr, typeof(Exception)))));
-
 
                 paramList.Add(paramExpr);
                 initList.Add(initExpr);
-                initList.Add(nullCheckExpr);
-                
+
+                if (!p.ParameterType.IsValueType)
+                {
+                    var nullCheckExpr = Expression.IfThen(Expression.Equal(nullExpr, paramExpr),
+                        Expression.Throw(Expression.New(MissingDependencyExceptionConstructor, Expression.Constant(implementationType), Expression.Constant(p.ParameterType), Expression.Convert(nullExpr, typeof(Exception)))));
+                    initList.Add(nullCheckExpr);
+                }
+
 
             }
 

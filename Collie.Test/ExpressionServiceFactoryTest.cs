@@ -119,5 +119,23 @@ namespace Collie.Test
             Assert.NotNull(instance);
             serviceContainerMock.Verify();
         }
+
+        [Fact]
+        public void TestValueTypeConstructorParameter()
+        {
+            var factory = new ExpressionServiceFactory();
+            var factoryMethod = factory.CreateFactory(typeof(ValueTypeDependentServiceA));
+            var serviceContainerMock = new Mock<IServiceContainerExtended>();
+
+            var expectedStack = new Type[] { typeof(ValueTypeDependentServiceA) };
+            var serviceAType = typeof(IServiceA);
+            serviceContainerMock.Setup(sc => sc.GetServiceInternal(typeof((int, string)), expectedStack))
+                .Returns(() => (1, "1"))
+                .Verifiable();
+
+            var instance = factoryMethod(serviceContainerMock.Object, Array.Empty<Type>());
+            Assert.NotNull(instance);
+            serviceContainerMock.Verify();
+        }
     }
 }
