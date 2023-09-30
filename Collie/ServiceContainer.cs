@@ -23,8 +23,11 @@ namespace Collie
         private static readonly Type ServiceCreatorCacheType = typeof(ServiceCreatorCache);
         private static readonly Type ITenantManagerType = typeof(ITenantManager);
         private static readonly Type IServiceScopeFactoryType = typeof(MSFTDI.IServiceScopeFactory);
+        private static readonly Type IDynamicServiceRegistrarType = typeof(IDynamicServiceRegistrar);
 
         private bool disposedValue;
+
+        private bool resolvingKey;
 
         protected IServiceCatalog services;
 
@@ -127,12 +130,35 @@ namespace Collie
 
             if (IsScopeContainer)
             {
+                resolvingKey = true;
                 tenantKey = tenantKeySelector(this);
+                resolvingKey = false;
                 tenantContainer = tenantManager.CaptureTenant(tenantKey, serviceContainerOptions);
             }
 
             if (tenantKey != null) {
                 PopulateServiceDefinitions(services, false);
+            }
+
+            var dynamicRegistration = this.GetService(IDynamicServiceRegistrarType) as IDynamicServiceRegistrar;
+            if(dynamicRegistration != null)
+            {
+                var catalog = new ServiceCatalog();
+                dynamicRegistration.RegisterServices(catalog);
+                // Have to create a new catalog, otherwise services added dynamically to the root are propagated to any child scopes
+                // which may not be correct, as the IDynamicServiceRegistrar may have selective registration logic.
+                var newServices = new ServiceCatalog(services);
+
+                foreach(var serviceDefinition in catalog)
+                {
+                    if(resolvedServices.ContainsKey(serviceDefinition.ServiceType))
+                    {
+                        throw new DynamicRegistrationDependencyException(serviceDefinition.ServiceType);
+                    }
+                    newServices.Add(serviceDefinition);
+                }
+                services = newServices;
+                PopulateServiceDefinitions(catalog, false);
             }
         }
 
@@ -140,7 +166,7 @@ namespace Collie
         {
             if (AllowContextualOverrides)
             {
-                foreach (var svc in services)
+                foreach (var svc in serviceDefinitions)
                 {
                     if (excludeTenantFilteredTypes && svc.TenantFilter != null)
                     {
@@ -156,7 +182,7 @@ namespace Collie
             }
             else
             {
-                foreach (var svc in services)
+                foreach (var svc in serviceDefinitions)
                 {
                     if (excludeTenantFilteredTypes && svc.TenantFilter != null)
                     {
@@ -208,10 +234,20 @@ namespace Collie
             else if (serviceType.IsGenericType && (genericType = serviceType.GetGenericTypeDefinition()) != null && serviceDefinitionsByType.ContainsKey(genericType))
             {
                 definition = serviceDefinitionsByType[genericType];
+            } else if(serviceContainerOptions.AlwaysRequireResolution)
+            {
+                // Added an option to preserve existing behavior.
+                throw new Exception(String.Format("Unable to find a service definition matching {0}", serviceType.FullName));
             }
             else
             {
-                throw new Exception(String.Format("Unable to find a service definition matching {0}", serviceType.FullName));
+                // This is the more correct behavior, leaving the semantics for requiring resolution to a helper.
+                return null;
+            }
+
+            if (resolvingKey && definition.Lifetime == ServiceLifetime.TenantSingleton)
+            {
+                throw new TenantKeyException(definition);
             }
 
             var lifetimeResolution = GetLiftetimeResolution(definition.Lifetime);

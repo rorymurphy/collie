@@ -6,6 +6,6 @@ using System.Threading.Tasks;
 
 namespace Collie.Abstractions
 {
-    public record struct ServiceContainerOptions(int TenantCacheSize = 0, uint MaxTenantSize = 0, bool IgnoreUnresolvableEnumerables = true, bool AllowContextualOverrides = true)
+    public record struct ServiceContainerOptions(int TenantCacheSize = 0, uint MaxTenantSize = 0, bool IgnoreUnresolvableEnumerables = true, bool AllowContextualOverrides = true, bool AlwaysRequireResolution = false)
     { }
 }
